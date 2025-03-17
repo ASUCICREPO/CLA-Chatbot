@@ -1,0 +1,737 @@
+{
+ "Resources": {
+  "WebsiteDataA0AC41D7": {
+   "Type": "AWS::S3::Bucket",
+   "Properties": {
+    "VersioningConfiguration": {
+     "Status": "Enabled"
+    }
+   },
+   "UpdateReplacePolicy": "Retain",
+   "DeletionPolicy": "Retain",
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/WebsiteData/Resource"
+   }
+  },
+  "InmateSummaryScrapperServiceRole9E35D26A": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/InmateSummaryScrapper/ServiceRole/Resource"
+   }
+  },
+  "InmateSummaryScrapperServiceRoleDefaultPolicy532351E4": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "WebsiteDataA0AC41D7",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "WebsiteDataA0AC41D7",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "InmateSummaryScrapperServiceRoleDefaultPolicy532351E4",
+    "Roles": [
+     {
+      "Ref": "InmateSummaryScrapperServiceRole9E35D26A"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/InmateSummaryScrapper/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "InmateSummaryScrapperBB7B4C25": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "arm64"
+    ],
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "209b2d8f63c3392ed8a4ba403161a48578ecdb1f581e03e4947e7e3090357f05.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "WebsiteDataA0AC41D7"
+      },
+      "REGION": {
+       "Ref": "AWS::Region"
+      }
+     }
+    },
+    "Handler": "handler.lambda_handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "InmateSummaryScrapperServiceRole9E35D26A",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 60
+   },
+   "DependsOn": [
+    "InmateSummaryScrapperServiceRoleDefaultPolicy532351E4",
+    "InmateSummaryScrapperServiceRole9E35D26A"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/InmateSummaryScrapper/Resource",
+    "aws:asset:path": "asset.209b2d8f63c3392ed8a4ba403161a48578ecdb1f581e03e4947e7e3090357f05",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "CondemnedInmateListScrapperServiceRole8ACB7F28": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/CondemnedInmateListScrapper/ServiceRole/Resource"
+   }
+  },
+  "CondemnedInmateListScrapperServiceRoleDefaultPolicy491EA8BA": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "WebsiteDataA0AC41D7",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "WebsiteDataA0AC41D7",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "CondemnedInmateListScrapperServiceRoleDefaultPolicy491EA8BA",
+    "Roles": [
+     {
+      "Ref": "CondemnedInmateListScrapperServiceRole8ACB7F28"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/CondemnedInmateListScrapper/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "CondemnedInmateListScrapperF03FE3F4": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "arm64"
+    ],
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "3697f235b008f465c63d7c4b11265540ad70260e3b22e2df6fe290bb2f3837ba.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "WebsiteDataA0AC41D7"
+      },
+      "REGION": {
+       "Ref": "AWS::Region"
+      }
+     }
+    },
+    "Handler": "handler.lambda_handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "CondemnedInmateListScrapperServiceRole8ACB7F28",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 60
+   },
+   "DependsOn": [
+    "CondemnedInmateListScrapperServiceRoleDefaultPolicy491EA8BA",
+    "CondemnedInmateListScrapperServiceRole8ACB7F28"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/CondemnedInmateListScrapper/Resource",
+    "aws:asset:path": "asset.3697f235b008f465c63d7c4b11265540ad70260e3b22e2df6fe290bb2f3837ba",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "ScoreJailRosterScraperServiceRole41C008B7": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/ScoreJailRosterScraper/ServiceRole/Resource"
+   }
+  },
+  "ScoreJailRosterScraperServiceRoleDefaultPolicyF4FDEE88": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": [
+        "s3:Abort*",
+        "s3:DeleteObject*",
+        "s3:GetBucket*",
+        "s3:GetObject*",
+        "s3:List*",
+        "s3:PutObject",
+        "s3:PutObjectLegalHold",
+        "s3:PutObjectRetention",
+        "s3:PutObjectTagging",
+        "s3:PutObjectVersionTagging"
+       ],
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Fn::GetAtt": [
+          "WebsiteDataA0AC41D7",
+          "Arn"
+         ]
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Fn::GetAtt": [
+             "WebsiteDataA0AC41D7",
+             "Arn"
+            ]
+           },
+           "/*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "ScoreJailRosterScraperServiceRoleDefaultPolicyF4FDEE88",
+    "Roles": [
+     {
+      "Ref": "ScoreJailRosterScraperServiceRole41C008B7"
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/ScoreJailRosterScraper/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "ScoreJailRosterScraperADF94FCA": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "arm64"
+    ],
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "d2fb01bde9e5b470e66cb56ca0a5d56580c4626283b6cb46fbe65a165dd37566.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "BUCKET_NAME": {
+       "Ref": "WebsiteDataA0AC41D7"
+      },
+      "REGION": {
+       "Ref": "AWS::Region"
+      }
+     }
+    },
+    "Handler": "handler.lambda_handler",
+    "Role": {
+     "Fn::GetAtt": [
+      "ScoreJailRosterScraperServiceRole41C008B7",
+      "Arn"
+     ]
+    },
+    "Runtime": "python3.12",
+    "Timeout": 60
+   },
+   "DependsOn": [
+    "ScoreJailRosterScraperServiceRoleDefaultPolicyF4FDEE88",
+    "ScoreJailRosterScraperServiceRole41C008B7"
+   ],
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/ScoreJailRosterScraper/Resource",
+    "aws:asset:path": "asset.d2fb01bde9e5b470e66cb56ca0a5d56580c4626283b6cb46fbe65a165dd37566",
+    "aws:asset:is-bundled": false,
+    "aws:asset:property": "Code"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/+1UTUsDMRD9LeYoaawtiPS2FQVPltrbUkqajG3abFLysVLC/nez2U1RCupNDz2FzJt5ecO8zIjc3g/J8Iq+2wHj+4EUaxJeHWV7HEOrYMckTD3bgysDqsFYoRVwNHHGA0YGKl1TOdNSsCOaxLujQqFmiR/eVFeGu2NKLZTLBktarTkl4ckr5iJXZDVeOVFBLL9GGG2p4hJMf2OaZ4AathUOmPMmh0DVwmhVgXJ9pCXSvrs1OCDK+ePnpDJlXaPlj+BF1S9VpVnncTZY0IqEuZYQJ0ut9RXwabRGQAcjFBMHKgvGtD+p6HLagiIx9HJQRRXdAE/WEmDji+FL7FiYPjfrW+hZfiIbsgw96qKjt89KCgUn7NTat+Clhb9uIRmslYa7eLJeLljoFjnjOQ9zHreag9a9Nkv6d0Sp1a7LBtvxKo4FnCVFezR4DlZ7wyD/vfT/cAIj00aoTVv+4t3Bx2wV1wHZ2Zt6NCZ3ccPvrBCDfn+QeXd+AEUXym/+BQAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "CdkBackendStack/CDKMetadata/Default"
+   },
+   "Condition": "CDKMetadataAvailable"
+  }
+ },
+ "Outputs": {
+  "WebsiteDataBucketName": {
+   "Description": "The name of the S3 bucket where website data will be stored",
+   "Value": {
+    "Ref": "WebsiteDataA0AC41D7"
+   },
+   "Export": {
+    "Name": "WebsiteDataBucketName"
+   }
+  }
+ },
+ "Conditions": {
+  "CDKMetadataAvailable": {
+   "Fn::Or": [
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "af-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-3"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-4"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-northwest-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-2"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "il-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "sa-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-west-1"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Equals": [
+      {
+       "Ref": "AWS::Region"
+      },
+      "us-west-2"
+     ]
+    }
+   ]
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}
