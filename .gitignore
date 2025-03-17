@@ -7,3 +7,4 @@ cdk_backend/.cdk.staging
 cdk_backend/cdk.out
 cdk_backend/cdk.out/
 cdk_backend/test.json
+.DS_Store
