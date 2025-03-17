@@ -1,35 +1,119 @@
 import os
-import io
-import csv
 import json
 import time
+import csv
 import boto3
+import re
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-# Environment variables for your S3 bucket and AWS region
-BUCKET_NAME = os.environ.get("BUCKET_NAME")
-REGION = os.environ.get("REGION")
+# Regex to match date-time strings in "MM/DD/YYYY hh:mm AM/PM" format.
+DATETIME_PATTERN = re.compile(r"(\d{2}/\d{2}/\d{4})\s+(\d{1,2}:\d{2}\s*[AP]M)", re.IGNORECASE)
 
-s3_client = boto3.client("s3", region_name=REGION)
+def get_with_retry(url, max_retries=3, initial_delay=1, backoff_factor=2, **kwargs):
+    """
+    Attempts to fetch the given URL with exponential backoff.
+    If a request fails, it retries up to max_retries times.
+    """
+    delay = initial_delay
+    for attempt in range(max_retries):
+        try:
+            print(f"[DEBUG] Attempt {attempt + 1} for URL: {url}")
+            response = requests.get(url, **kwargs)
+            response.raise_for_status()
+            return response
+        except requests.exceptions.RequestException as e:
+            print(f"[DEBUG] Attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                raise e
+            time.sleep(delay)
+            delay *= backoff_factor
+
+def post_process_data(data):
+    """
+    Processes each row from the scraped data:
+      - Splits DateBooked(MM/DD/YYYY) into:
+          "DateBooked_Date(MM/DD/YYYY)" and "DateBooked_Time (24-hour format)"
+        (time is converted to 24-hour military format).
+      - Copies DateReleased(MM/DD/YYYY) as "DateReleased_Status".
+      - For ScheduledReleaseDate(MM/DD/YYYY):
+          If valid, splits into "ScheduledRelease_Date(MM/DD/YYYY)" and 
+          "ScheduledRelease_Time (24-hour format)" (using 24-hour format) and marks 
+          "ScheduledRealesedDate_ToBeDetermined(Yes,No)" as "No". Otherwise, leaves the date and time blank 
+          and marks "ScheduledRealesedDate_ToBeDetermined(Yes,No)" as "Yes".
+    Returns a new list of dictionaries with updated keys.
+    """
+    processed = []
+    for row in data:
+        new_row = {}
+        # Copy unchanged fields.
+        new_row["BookingNumber"] = row.get("BookingNumber", "")
+        new_row["FirstName"] = row.get("FirstName", "")
+        new_row["LastName"] = row.get("LastName", "")
+        new_row["MiddleName"] = row.get("MiddleName", "")
+        new_row["NameNumber"] = row.get("NameNumber", "")
+        new_row["VineLink"] = row.get("VineLink", "")
+
+        # Process DateBooked: split into date and time in 24-hour format.
+        date_booked_str = row.get("DateBooked(MM/DD/YYYY)", "").strip()
+        try:
+            dt_booked = datetime.strptime(date_booked_str, "%m/%d/%Y %I:%M %p")
+            new_row["DateBooked_Date(MM/DD/YYYY)"] = dt_booked.strftime("%m/%d/%Y")
+            new_row["DateBooked_Time (24-hour format)"] = dt_booked.strftime("%H:%M")
+        except ValueError:
+            new_row["DateBooked_Date(MM/DD/YYYY)"] = date_booked_str
+            new_row["DateBooked_Time (24-hour format)"] = ""
+
+        # Process DateReleased: copy as DateReleased_Status.
+        new_row["DateReleased_Status"] = row.get("DateReleased(MM/DD/YYYY)", "").strip()
+
+        # Process ScheduledReleaseDate.
+        sched_str = row.get("ScheduledReleaseDate(MM/DD/YYYY)", "").strip()
+        try:
+            dt_sched = datetime.strptime(sched_str, "%m/%d/%Y %I:%M %p")
+            new_row["ScheduledRelease_Date(MM/DD/YYYY)"] = dt_sched.strftime("%m/%d/%Y")
+            new_row["ScheduledRelease_Time (24-hour format)"] = dt_sched.strftime("%H:%M")
+            new_row["ScheduledRealesedDate_ToBeDetermined(Yes,No)"] = "No"
+        except ValueError:
+            new_row["ScheduledRelease_Date(MM/DD/YYYY)"] = ""
+            new_row["ScheduledRelease_Time (24-hour format)"] = ""
+            # If empty or "to be determined", mark as Yes; otherwise, just pass original text.
+            new_row["ScheduledRealesedDate_ToBeDetermined(Yes,No)"] = "Yes" if sched_str.lower() == "to be determined" or sched_str == "" else sched_str
+
+        # Preserve nested fields if present.
+        if "offenses" in row:
+            new_row["offenses"] = row["offenses"]
+        if "booking_list" in row:
+            new_row["booking_list"] = row["booking_list"]
+
+        processed.append(new_row)
+    return processed
 
 def scrape_inmate_view(base_url, inmate_nn):
     """
-    (Detail scraping function; not used in this version.)
+    Fetches and parses the detailed inmate page at <base_url>/view with POST data {"nn": inmate_nn}.
+    Returns a dictionary of the inmate's current booking details, offenses, and booking history.
     """
+    print(f"  [DEBUG] Scraping detail view for inmate NN: {inmate_nn}")
     view_url = f"{base_url}/view"
     payload = {"nn": inmate_nn}
+
     response = requests.post(view_url, data=payload)
     response.raise_for_status()
-    soup = BeautifulSoup(response.text, "html.parser")
-    details = {}
+    soup = BeautifulSoup("", "html.parser")  # Dummy blank soup
 
+    details = {}
+    # --- Process "Current Booking" section ---
     current_booking_h1 = soup.find("h1", text=lambda t: t and "Current Booking" in t)
     if current_booking_h1:
+        print("    [DEBUG] Found 'Current Booking' section")
         current_booking_container = current_booking_h1.find_next("div", class_="list")
         booking_h2 = current_booking_container.find("h2")
         if booking_h2 and "Booking #" in booking_h2.text:
             details["current_booking_number"] = booking_h2.text.strip().split("#", 1)[-1].strip()
+            print(f"      [DEBUG] Current Booking Number: {details['current_booking_number']}")
+
         info_rows = current_booking_container.find_all("div", class_="row")
         offenses_h3 = current_booking_container.find("h3", text=lambda t: t and "Offenses" in t)
         for row in info_rows:
@@ -41,149 +125,167 @@ def scrape_inmate_view(base_url, inmate_nn):
                 label = b.get_text(strip=True).replace(":", "")
                 value = li.get_text(strip=True)
                 if "Date Booked" in label:
-                    details["current_booking_date_booked(MM/DD/YYYY)"] = value
+                    details["current_booking_date_booked"] = value
+                    print(f"      [DEBUG] Current Booking Date Booked: {value}")
                 elif "Date Released" in label:
-                    details["current_booking_date_released(MM/DD/YYYY)"] = value
+                    details["current_booking_date_released"] = value
+                    print(f"      [DEBUG] Current Booking Date Released: {value}")
                 elif "Scheduled Release Date" in label:
-                    details["current_booking_scheduled_release_date(MM/DD/YYYY)"] = value
+                    details["current_booking_scheduled_release_date"] = value
+                    print(f"      [DEBUG] Current Booking Scheduled Release Date: {value}")
+
         details["offenses"] = []
         if offenses_h3:
+            print("    [DEBUG] Found 'Offenses' section")
             offenses_container = offenses_h3.find_next("div", class_="list")
             if offenses_container:
                 offense_panels = offenses_container.find_all("div", class_="uk-width-1 uk-panel", recursive=False)
-                for panel in offense_panels:
+                for index, panel in enumerate(offense_panels, start=1):
                     rows = panel.find_all("div", class_="row")
                     if len(rows) == 6:
-                        agency = rows[0].find("li").get_text(strip=True) if rows[0].find("li") else ""
-                        offense = rows[1].find("li").get_text(strip=True) if rows[1].find("li") else ""
-                        cause_num = rows[2].find("li").get_text(strip=True) if rows[2].find("li") else ""
-                        offense_stat = rows[3].find("li").get_text(strip=True) if rows[3].find("li") else ""
-                        bond = rows[4].find("li").get_text(strip=True) if rows[4].find("li") else ""
-                        bond_amount = rows[5].find("li").get_text(strip=True) if rows[5].find("li") else ""
                         offense_data = {
-                            "agency": agency,
-                            "offense": offense,
-                            "cause_number": cause_num,
-                            "offense_status": offense_stat,
-                            "bond": bond,
-                            "bond_amount": bond_amount
+                            "agency": rows[0].find("li").get_text(strip=True) if rows[0].find("li") else "",
+                            "offense": rows[1].find("li").get_text(strip=True) if rows[1].find("li") else "",
+                            "cause_number": rows[2].find("li").get_text(strip=True) if rows[2].find("li") else "",
+                            "offense_status": rows[3].find("li").get_text(strip=True) if rows[3].find("li") else "",
+                            "bond": rows[4].find("li").get_text(strip=True) if rows[4].find("li") else "",
+                            "bond_amount": rows[5].find("li").get_text(strip=True) if rows[5].find("li") else ""
                         }
                         details["offenses"].append(offense_data)
+                        print(f"      [DEBUG] Offense {index}: {offense_data}")
+    else:
+        print("    [DEBUG] 'Current Booking' section not found.")
 
+    # --- Process "Booking List" section ---
     booking_list_h1 = soup.find("h1", text=lambda t: t and "Booking List" in t)
     details["booking_list"] = []
     if booking_list_h1:
+        print("    [DEBUG] Found 'Booking List' section")
         booking_list_container = booking_list_h1.find_next("div", class_="list")
         if booking_list_container:
             booking_panels = booking_list_container.find_all("div", class_="uk-width-1 uk-panel", recursive=False)
-            for panel in booking_panels:
+            for index, panel in enumerate(booking_panels, start=1):
                 rows = panel.find_all("div", class_="row")
                 if len(rows) == 4:
-                    booking_number = rows[0].find("li").get_text(strip=True) if rows[0].find("li") else ""
-                    date_booked = rows[1].find("li").get_text(strip=True) if rows[1].find("li") else ""
-                    date_released = rows[2].find("li").get_text(strip=True) if rows[2].find("li") else ""
-                    release_type = rows[3].find("li").get_text(strip=True) if rows[3].find("li") else ""
                     booking_data = {
-                        "booking_number": booking_number,
-                        "date_booked(MM/DD/YYYY)": date_booked,
-                        "date_released(MM/DD/YYYY)": date_released,
-                        "release_type": release_type
+                        "booking_number": rows[0].find("li").get_text(strip=True) if rows[0].find("li") else "",
+                        "date_booked(MM/DD/YYYY)": rows[1].find("li").get_text(strip=True) if rows[1].find("li") else "",
+                        "date_released(MM/DD/YYYY)": rows[2].find("li").get_text(strip=True) if rows[2].find("li") else "",
+                        "release_type": rows[3].find("li").get_text(strip=True) if rows[3].find("li") else ""
                     }
                     details["booking_list"].append(booking_data)
+                    print(f"      [DEBUG] Booking History {index}: {booking_data}")
+    else:
+        print("    [DEBUG] 'Booking List' section not found.")
+
     time.sleep(1)
     return details
 
 def scrape_score_jail(roster_url, base_url):
     """
-    Fetches the main roster page and builds inmate data with already renamed keys.
+    1. Fetch the main roster page.
+    2. For each inmate on the roster page, extract top-level info.
+    3. Return a list of dictionaries containing all main-page data.
     """
-    response = requests.get(roster_url)
-    response.raise_for_status()
+    print(f"[DEBUG] Fetching roster page: {roster_url}")
+    response = get_with_retry(roster_url, max_retries=3, initial_delay=1, backoff_factor=2)
     soup = BeautifulSoup(response.text, 'html.parser')
-
-    inmate_panels = soup.find_all("div", class_="uk-width-1 uk-panel", recursive=False)
+    inmate_panels = soup.find_all("div", class_="uk-width-1 uk-panel")
+    print(f"[DEBUG] Found {len(inmate_panels)} inmate panels on roster page")
     all_inmates = []
-    for panel in inmate_panels:
+    for idx, panel in enumerate(inmate_panels, start=1):
         rows = panel.find_all("div", class_="row")
         if len(rows) < 9:
+            print(f"  [DEBUG] Skipping panel {idx} due to insufficient rows")
             continue
-
-        name_number_lis = rows[0].find_all("li")
-        name_number = name_number_lis[0].get_text(strip=True) if name_number_lis else ""
-        last_name = rows[1].find("li").get_text(strip=True)
-        first_name = rows[2].find("li").get_text(strip=True)
-        middle_name = rows[3].find("li").get_text(strip=True)
-        booking_number = rows[4].find("li").get_text(strip=True)
-        date_booked = rows[5].find("li").get_text(strip=True)
-        date_released = rows[6].find("li").get_text(strip=True)
-        scheduled_release = rows[7].find("li").get_text(strip=True)
-        vine_link_li = rows[8].find("li")
-        vine_a_tag = vine_link_li.find("a", href=True) if vine_link_li else None
-        vine_link = vine_a_tag["href"] if vine_a_tag else ""
-
-        # Build inmate data with keys already renamed for CSV
         inmate_data = {
-            "name_number": name_number,
-            "last_name": last_name,
-            "first_name": first_name,
-            "middle_name": middle_name,
-            "booking_number": booking_number,
-            "date_booked(MM/DD/YYYY)": date_booked,
-            "date_released(MM/DD/YYYY)": date_released,
-            "scheduled_release_date(MM/DD/YYYY)": scheduled_release,
-            "vine_link": vine_link
+            "NameNumber": rows[0].find_all("li")[0].get_text(strip=True),
+            "LastName": rows[1].find("li").get_text(strip=True),
+            "FirstName": rows[2].find("li").get_text(strip=True),
+            "MiddleName": rows[3].find("li").get_text(strip=True),
+            "BookingNumber": rows[4].find("li").get_text(strip=True),
+            "DateBooked(MM/DD/YYYY)": rows[5].find("li").get_text(strip=True),
+            "DateReleased(MM/DD/YYYY)": rows[6].find("li").get_text(strip=True),
+            "ScheduledReleaseDate(MM/DD/YYYY)": rows[7].find("li").get_text(strip=True),
+            "VineLink": (rows[8].find("li").find("a", href=True)["href"]
+                         if rows[8].find("li").find("a", href=True) else "")
         }
-
-        # [COMMENTED OUT] Only scrape main page data; additional details not fetched.
-        # additional_details = scrape_inmate_view(base_url, name_number)
+        print(f"[DEBUG] Processing inmate {idx}: NN {inmate_data['NameNumber']}, {inmate_data['FirstName']} {inmate_data['LastName']}")
+        
+        # Detailed inmate view scraping is currently disabled.
+        # Uncomment the lines below to include detailed inmate view data.
+        # additional_details = scrape_inmate_view(base_url, inmate_data["NameNumber"])
         # inmate_data.update(additional_details)
+        
         all_inmates.append(inmate_data)
-        time.sleep(1)
+    print(f"[DEBUG] Completed scraping roster. Total inmates processed: {len(all_inmates)}")
     return all_inmates
 
-def convert_to_csv_string(data):
+def save_to_csv(data, filename):
     """
-    Converts the list of dictionaries to a CSV string.
-    Assumes the keys are already in the desired format.
+    Saves the given list of inmate dictionaries to CSV.
+    Expects data that has already been post-processed.
     """
+    print(f"[DEBUG] Saving data to CSV file: {filename}")
     if not data:
-        return ""
-    headers = list(data[0].keys())
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=headers)
-    writer.writeheader()
-    for row in data:
-        # For nested structures, serialize as JSON strings
-        if "offenses" in row and isinstance(row["offenses"], list):
-            row["offenses"] = json.dumps(row["offenses"])
-        if "booking_list" in row and isinstance(row["booking_list"], list):
-            row["booking_list"] = json.dumps(row["booking_list"])
-        writer.writerow(row)
-    return output.getvalue()
+        print("[DEBUG] No data to save.")
+        return
+
+    # Define headers in the desired order.
+    headers = [
+        "BookingNumber",
+        "DateBooked_Date(MM/DD/YYYY)", "DateBooked_Time (24-hour format)",
+        "DateReleased_Status",
+        "FirstName", "LastName", "MiddleName",
+        "NameNumber",
+        "ScheduledRelease_Date(MM/DD/YYYY)", "ScheduledRelease_Time (24-hour format)", "ScheduledRealesedDate_ToBeDetermined(Yes,No)",
+        "VineLink"
+    ]
+
+    with open(filename, mode="w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
+        for row in data:
+            writer.writerow(row)
+
+    print(f"[DEBUG] Data saved successfully to '{filename}'.")
 
 def lambda_handler(event, context):
-    try:
-        base_url = "https://jils.scorejail.org"
-        roster_url = f"{base_url}/roster"
-        all_inmates_data = scrape_score_jail(roster_url, base_url)
-        csv_content = convert_to_csv_string(all_inmates_data)
-        if not csv_content:
-            return {
-                "statusCode": 200,
-                "body": "No inmate data found."
-            }
-        file_key = "score_jail_data.csv"
-        s3_client.put_object(
-            Bucket=BUCKET_NAME,
-            Key=file_key,
-            Body=csv_content
-        )
-        return {
-            "statusCode": 200,
-            "body": f"Successfully scraped data and uploaded '{file_key}' to bucket '{BUCKET_NAME}'."
-        }
-    except Exception as e:
-        return {
-            "statusCode": 500,
-            "body": f"An error occurred: {str(e)}"
-        }
+    """
+    AWS Lambda handler that:
+      1. Scrapes the main inmate roster from SCORE Jail (without detailed inmate view).
+      2. Post-processes date fields.
+      3. Saves the result as a CSV in the Lambda environment.
+      4. Uploads the CSV to an S3 bucket specified in the environment variables.
+      5. Returns a simple status message.
+    """
+    base_url = "https://jils.scorejail.org"
+    roster_url = f"{base_url}/roster"
+    print("[DEBUG] Starting scraping process in Lambda...")
+    all_inmates_data = scrape_score_jail(roster_url, base_url)
+
+    # Post-process data to split DateBooked and process ScheduledReleaseDate.
+    processed_data = post_process_data(all_inmates_data)
+
+    csv_filename = "/tmp/score_jail_data.csv"  # Lambda can write to /tmp
+    save_to_csv(processed_data, csv_filename)
+
+    # Retrieve S3 bucket name and region from environment variables.
+    bucket_name = os.environ.get('BUCKET_NAME')
+    region = os.environ.get('REGION')
+    if not bucket_name:
+        raise ValueError("BUCKET_NAME environment variable is not set.")
+    if not region:
+        raise ValueError("REGION environment variable is not set.")
+
+    s3_object_key = "score_jail_data.csv"  # Change the key as desired.
+    s3_client = boto3.client("s3", region_name=region)
+    s3_client.upload_file(csv_filename, bucket_name, s3_object_key)
+
+    msg = (f"[DEBUG] Saved {len(processed_data)} inmate records to S3 bucket '{bucket_name}' "
+           f"with key '{s3_object_key}' in region '{region}'.")
+    print(msg)
+    return {
+        'statusCode': 200,
+        'body': msg
+    }
