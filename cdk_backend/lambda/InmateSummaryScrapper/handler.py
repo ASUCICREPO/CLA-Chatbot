@@ -81,13 +81,11 @@ def post_process_table(section, headers, rows):
     }
     new_headers = mapping.get(section, headers)
     
-    new_rows = []
-    for row in rows:
-        if row[0] == "":
-            row[0] = "Total"
-        new_rows.append(row)
+    # Remove the last row if it exists (assumed to be the total row)
+    if rows:
+        rows = rows[:-1]
     
-    return new_headers, new_rows
+    return new_headers, rows
 
 def save_csv_to_s3(headers, rows, filename):
     """

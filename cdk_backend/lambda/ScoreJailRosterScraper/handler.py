@@ -30,56 +30,89 @@ def get_with_retry(url, max_retries=3, initial_delay=1, backoff_factor=2, **kwar
             time.sleep(delay)
             delay *= backoff_factor
 
+# [ADDED] Helper function to ensure HH:MM:SS
+def ensure_hhmmss(time_str: str) -> str:
+    """
+    Ensures a time string is in HH:MM:SS format by appending ':00' if it's only HH:MM.
+    If empty or invalid, returns an empty string.
+    """
+    if not time_str:
+        return ""
+    time_str = time_str.strip()
+    parts = time_str.split(":")
+    if len(parts) == 2:
+        return time_str + ":00"
+    return time_str  # Already HH:MM:SS or something else.
+
 def post_process_data(data):
     """
     Processes each row from the scraped data:
-      - Splits DateBooked(MM/DD/YYYY) into:
-          "DateBooked_Date(MM/DD/YYYY)" and "DateBooked_Time (24-hour format)"
-        (time is converted to 24-hour military format).
-      - Copies DateReleased(MM/DD/YYYY) as "DateReleased_Status".
-      - For ScheduledReleaseDate(MM/DD/YYYY):
-          If valid, splits into "ScheduledRelease_Date(MM/DD/YYYY)" and 
-          "ScheduledRelease_Time (24-hour format)" (using 24-hour format) and marks 
-          "ScheduledRealesedDate_ToBeDetermined(Yes,No)" as "No". Otherwise, leaves the date and time blank 
-          and marks "ScheduledRealesedDate_ToBeDetermined(Yes,No)" as "Yes".
+      - Combines DateBooked(MM/DD/YYYY) into a single datetime field (booking_datetime)
+        in ISO format, and also extracts the time in 24-hour format with seconds.
+      - Processes DateReleased(MM/DD/YYYY) as a status field.
+      - Processes ScheduledReleaseDate(MM/DD/YYYY) by trying to combine date and time 
+        into scheduled_release_datetime in ISO format. If parsing fails, marks the field
+        as TBD.
     Returns a new list of dictionaries with updated keys.
     """
     processed = []
     for row in data:
         new_row = {}
         # Copy unchanged fields.
-        new_row["BookingNumber"] = row.get("BookingNumber", "")
-        new_row["FirstName"] = row.get("FirstName", "")
-        new_row["LastName"] = row.get("LastName", "")
-        new_row["MiddleName"] = row.get("MiddleName", "")
-        new_row["NameNumber"] = row.get("NameNumber", "")
-        new_row["VineLink"] = row.get("VineLink", "")
-
-        # Process DateBooked: split into date and time in 24-hour format.
+        new_row["booking_number"] = row.get("BookingNumber", "")
+        new_row["first_name"] = row.get("FirstName", "")
+        new_row["last_name"] = row.get("LastName", "")
+        new_row["middle_name"] = row.get("MiddleName", "")
+        new_row["name_number"] = row.get("NameNumber", "")
+        new_row["vine_link"] = row.get("VineLink", "")
+        
+        # Process DateBooked: Combine date and time into a single datetime.
         date_booked_str = row.get("DateBooked(MM/DD/YYYY)", "").strip()
         try:
+            # Expecting format like "MM/DD/YYYY hh:mm AM/PM"
             dt_booked = datetime.strptime(date_booked_str, "%m/%d/%Y %I:%M %p")
-            new_row["DateBooked_Date(MM/DD/YYYY)"] = dt_booked.strftime("%m/%d/%Y")
-            new_row["DateBooked_Time (24-hour format)"] = dt_booked.strftime("%H:%M")
+            new_row["booking_datetime"] = dt_booked.isoformat()  # ISO format datetime
+            # Format time to include seconds (defaulting to 00)
+            new_row["booking_time_24hr"] = dt_booked.strftime("%H:%M:%S")
         except ValueError:
-            new_row["DateBooked_Date(MM/DD/YYYY)"] = date_booked_str
-            new_row["DateBooked_Time (24-hour format)"] = ""
+            # If conversion fails, save original string and leave booking time empty.
+            new_row["booking_datetime"] = date_booked_str
+            new_row["booking_time_24hr"] = ""
+            # [ADDED] Attempt to salvage a time if it looks like HH:MM
+            match = re.search(r"\b(\d{1,2}:\d{2})\b", date_booked_str)
+            if match:
+                possible_time = match.group(1)
+                new_row["booking_time_24hr"] = ensure_hhmmss(possible_time)
 
-        # Process DateReleased: copy as DateReleased_Status.
-        new_row["DateReleased_Status"] = row.get("DateReleased(MM/DD/YYYY)", "").strip()
+        # [ADDED] Debug line for booking_time_24hr
+        print(f"[DEBUG] booking_number={new_row['booking_number']} => booking_time_24hr={new_row['booking_time_24hr']}")
 
-        # Process ScheduledReleaseDate.
+        # Process DateReleased: copy as status.
+        new_row["date_released"] = row.get("DateReleased(MM/DD/YYYY)", "").strip()
+
+        # Process ScheduledReleaseDate: combine date and time if possible.
         sched_str = row.get("ScheduledReleaseDate(MM/DD/YYYY)", "").strip()
         try:
             dt_sched = datetime.strptime(sched_str, "%m/%d/%Y %I:%M %p")
-            new_row["ScheduledRelease_Date(MM/DD/YYYY)"] = dt_sched.strftime("%m/%d/%Y")
-            new_row["ScheduledRelease_Time (24-hour format)"] = dt_sched.strftime("%H:%M")
-            new_row["ScheduledRealesedDate_ToBeDetermined(Yes,No)"] = "No"
+            new_row["scheduled_release_datetime"] = dt_sched.isoformat()
+            new_row["scheduled_release_time_24hr"] = dt_sched.strftime("%H:%M:%S")
+            new_row["scheduled_release_tbd"] = False
         except ValueError:
-            new_row["ScheduledRelease_Date(MM/DD/YYYY)"] = ""
-            new_row["ScheduledRelease_Time (24-hour format)"] = ""
-            # If empty or "to be determined", mark as Yes; otherwise, just pass original text.
-            new_row["ScheduledRealesedDate_ToBeDetermined(Yes,No)"] = "Yes" if sched_str.lower() == "to be determined" or sched_str == "" else sched_str
+            new_row["scheduled_release_datetime"] = ""
+            new_row["scheduled_release_time_24hr"] = ""
+            # If the original string is empty or "to be determined", mark as TBD.
+            if sched_str.lower() == "to be determined" or sched_str == "":
+                new_row["scheduled_release_tbd"] = True
+            else:
+                new_row["scheduled_release_tbd"] = sched_str
+                # [ADDED] Attempt to salvage a time if it looks like HH:MM
+                match_sched = re.search(r"\b(\d{1,2}:\d{2})\b", sched_str)
+                if match_sched:
+                    possible_time = match_sched.group(1)
+                    new_row["scheduled_release_time_24hr"] = ensure_hhmmss(possible_time)
+
+        # [ADDED] Debug line for scheduled_release_time_24hr
+        print(f"[DEBUG] booking_number={new_row['booking_number']} => scheduled_release_time_24hr={new_row['scheduled_release_time_24hr']}")
 
         # Preserve nested fields if present.
         if "offenses" in row:
@@ -199,62 +232,91 @@ def scrape_score_jail(roster_url, base_url):
             print(f"  [DEBUG] Skipping panel {idx} due to insufficient rows")
             continue
         inmate_data = {
-            "NameNumber": rows[0].find_all("li")[0].get_text(strip=True),
-            "LastName": rows[1].find("li").get_text(strip=True),
-            "FirstName": rows[2].find("li").get_text(strip=True),
-            "MiddleName": rows[3].find("li").get_text(strip=True),
-            "BookingNumber": rows[4].find("li").get_text(strip=True),
-            "DateBooked(MM/DD/YYYY)": rows[5].find("li").get_text(strip=True),
-            "DateReleased(MM/DD/YYYY)": rows[6].find("li").get_text(strip=True),
-            "ScheduledReleaseDate(MM/DD/YYYY)": rows[7].find("li").get_text(strip=True),
+            "BookingNumber": rows[4].find("li").get_text(strip=True) if rows[4].find("li") else "",
+            "DateBooked(MM/DD/YYYY)": rows[5].find("li").get_text(strip=True) if rows[5].find("li") else "",
+            "DateReleased(MM/DD/YYYY)": rows[6].find("li").get_text(strip=True) if rows[6].find("li") else "",
+            "ScheduledReleaseDate(MM/DD/YYYY)": rows[7].find("li").get_text(strip=True) if rows[7].find("li") else "",
+            "FirstName": rows[2].find("li").get_text(strip=True) if rows[2].find("li") else "",
+            "LastName": rows[1].find("li").get_text(strip=True) if rows[1].find("li") else "",
+            "MiddleName": rows[3].find("li").get_text(strip=True) if rows[3].find("li") else "",
+            "NameNumber": rows[0].find_all("li")[0].get_text(strip=True) if rows[0].find_all("li") else "",
             "VineLink": (rows[8].find("li").find("a", href=True)["href"]
-                         if rows[8].find("li").find("a", href=True) else "")
+                         if rows[8].find("li") and rows[8].find("li").find("a", href=True)
+                         else "")
         }
-        print(f"[DEBUG] Processing inmate {idx}: NN {inmate_data['NameNumber']}, {inmate_data['FirstName']} {inmate_data['LastName']}")
-        
+        print(f"[DEBUG] Processing inmate {idx}: NN {inmate_data.get('NameNumber')}, {inmate_data.get('FirstName')} {inmate_data.get('LastName')}")
         # Detailed inmate view scraping is currently disabled.
         # Uncomment the lines below to include detailed inmate view data.
         # additional_details = scrape_inmate_view(base_url, inmate_data["NameNumber"])
         # inmate_data.update(additional_details)
-        
         all_inmates.append(inmate_data)
     print(f"[DEBUG] Completed scraping roster. Total inmates processed: {len(all_inmates)}")
     return all_inmates
 
 def save_to_csv(data, filename):
     """
-    Saves the given list of inmate dictionaries to CSV.
-    Expects data that has already been post-processed.
+    Saves the processed inmate data to a CSV file.
+    The 'date_released' field is converted to a boolean:
+      - True if the value equals "In SCORE Custody"
+      - False otherwise.
+    
+    Args:
+        data (list of dict): List of inmate records.
+        filename (str): The file path to save the CSV.
     """
-    print(f"[DEBUG] Saving data to CSV file: {filename}")
-    if not data:
-        print("[DEBUG] No data to save.")
-        return
+    # Convert the "date_released" field to boolean.
+    for row in data:
+        row["date_released"] = True if row.get("date_released", "").strip() == "In SCORE Custody" else False
 
-    # Define headers in the desired order.
+    # Define CSV headers without datatype annotations.
     headers = [
-        "BookingNumber",
-        "DateBooked_Date(MM/DD/YYYY)", "DateBooked_Time (24-hour format)",
-        "DateReleased_Status",
-        "FirstName", "LastName", "MiddleName",
-        "NameNumber",
-        "ScheduledRelease_Date(MM/DD/YYYY)", "ScheduledRelease_Time (24-hour format)", "ScheduledRealesedDate_ToBeDetermined(Yes,No)",
-        "VineLink"
+        "booking_number",
+        "booking_datetime",
+        "booking_time_24hr",
+        "In_Score_Custody",
+        "first_name",
+        "last_name",
+        "middle_name",
+        "name_number",
+        "scheduled_release_datetime",
+        "scheduled_release_time_24hr",
+        "scheduled_release_tbd",
+        "vine_link"
     ]
 
+    # Mapping from the original data keys to our new header keys.
+    key_mapping = {
+        "booking_number": "booking_number",
+        "booking_datetime": "booking_datetime",
+        "booking_time_24hr": "booking_time_24hr",
+        "date_released": "In_Score_Custody",
+        "first_name": "first_name",
+        "last_name": "last_name",
+        "middle_name": "middle_name",
+        "name_number": "name_number",
+        "scheduled_release_datetime": "scheduled_release_datetime",
+        "scheduled_release_time_24hr": "scheduled_release_time_24hr",
+        "scheduled_release_tbd": "scheduled_release_tbd",
+        "vine_link": "vine_link"
+    }
+
+    # Write to CSV.
     with open(filename, mode="w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=headers)
         writer.writeheader()
         for row in data:
-            writer.writerow(row)
-
+            new_row = {}
+            for orig_key, new_header in key_mapping.items():
+                new_row[new_header] = row.get(orig_key, "")
+            writer.writerow(new_row)
     print(f"[DEBUG] Data saved successfully to '{filename}'.")
+
 
 def lambda_handler(event, context):
     """
     AWS Lambda handler that:
       1. Scrapes the main inmate roster from SCORE Jail (without detailed inmate view).
-      2. Post-processes date fields.
+      2. Post-processes date fields and combines date and time into datetime fields.
       3. Saves the result as a CSV in the Lambda environment.
       4. Uploads the CSV to an S3 bucket specified in the environment variables.
       5. Returns a simple status message.
@@ -264,7 +326,7 @@ def lambda_handler(event, context):
     print("[DEBUG] Starting scraping process in Lambda...")
     all_inmates_data = scrape_score_jail(roster_url, base_url)
 
-    # Post-process data to split DateBooked and process ScheduledReleaseDate.
+    # Post-process data to combine date and time fields.
     processed_data = post_process_data(all_inmates_data)
 
     csv_filename = "/tmp/score_jail_data.csv"  # Lambda can write to /tmp
