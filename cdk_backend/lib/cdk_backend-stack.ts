@@ -62,13 +62,13 @@ export class CdkBackendStack1 extends cdk.Stack {
     const kb = new bedrock.VectorKnowledgeBase(this, 'KnowledgeBase', {
       embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V2_1024,
       instruction: 'Use this knowledge base to answer questions about CSV and PDF related Inmate Data.',
-      name: 'InmateDataKnowledgeBase',
+      name: 'InmateDataKnowledgeBase12',
       description: 'A knowledge base for Inmate Data combied PDF and CSV',
       existingRole: bedrockRole,
     });
     
     const DataSource = new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
-      name: 'InmateDataKnowledgeBase',  
+      name: 'InmateDataKnowledgeBase12',  
       knowledgeBaseId: kb.knowledgeBaseId,
 
       dataSourceConfiguration: {
