@@ -8,11 +8,28 @@ import * as iam from 'aws-cdk-lib/aws-iam';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2_integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import { bedrock } from '@cdklabs/generative-ai-cdk-constructs';
-
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as amplify from '@aws-cdk/aws-amplify-alpha';
 
 export class CdkBackendStack1 extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
+
+    const githubToken = this.node.tryGetContext('githubToken');
+    const githubOwner = this.node.tryGetContext('githubOwner');
+    const githubRepo = this.node.tryGetContext('githubRepo');
+    if (!githubToken || !githubOwner) {
+      throw new Error('Please provide the githubToken, and githubOwner in the context. like this: cdk deploy -c githubToken=your-github-token -c githubOwner=your-github-owner -c githubRepo=your-github-repo');
+    }
+
+    const githubToken_secret_manager = new secretsmanager.Secret(this, 'GitHubToken', {
+      secretName: 'github-token',
+      description: 'GitHub Personal Access Token for Amplify',
+      secretStringValue: cdk.SecretValue.unsafePlainText(githubToken)
+    });
+
+
+    
 
     const aws_region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
@@ -292,7 +309,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     BedrockAIAgent.grantInvoke(webSocketHandler)
 
 
-    const webSocketIntegration = new apigatewayv2_integrations.WebSocketLambdaIntegration('cla-web-socket-integration', webSocketHandler);
+    const webSocketIntegration = new apigatewayv2_integrations.WebSocketLambdaIntegration('web-socket-integration', webSocketHandler);
 
     webSocketApi.addRoute('sendMessage',
       {
@@ -301,14 +318,67 @@ export class CdkBackendStack1 extends cdk.Stack {
       }
     );
 
-    
 
+    const amplifyApp = new amplify.App(this, 'ChatbotUI', {
+      sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
+        owner: githubOwner,
+        repository: githubRepo,
+        oauthToken: githubToken_secret_manager.secretValue
+      }),
+      buildSpec: cdk.aws_codebuild.BuildSpec.fromObjectToYaml({
+        version: '1.0',
+        frontend: {
+          phases: {
+            preBuild: {
+              commands: ['cd frontend', 'npm ci']
+            },
+            build: {
+              commands: ['npm run build']
+            }
+          },
+          artifacts: {
+            baseDirectory: 'frontend/build',
+            files: ['**/*']
+          },
+          cache: {
+            paths: ['frontend/node_modules/**/*']
+          }
+        }
+      }),
+    });
+
+    const mainBranch = amplifyApp.addBranch('main', {
+      autoBuild: true,
+      stage: 'PRODUCTION'
+    });
+
+
+    amplifyApp.addEnvironment('REACT_APP_WEBSOCKET_API', webSocketStage.url);
+
+    amplifyApp.addEnvironment('REACT_APP_BUCKET_NAME', WebsiteData.bucketName);
+    amplifyApp.addEnvironment('REACT_APP_BUCKET_REGION', this.region);
+    amplifyApp.addEnvironment('REACT_APP_AWS_REGION', this.region);
+    
+    githubToken_secret_manager.grantRead(amplifyApp);
+
+  
     // Output the bucket name
     new cdk.CfnOutput(this, 'WebsiteDataBucketName', {
       value: WebsiteData.bucketName,
       description: 'The name of the S3 bucket where website data will be stored',
       exportName: 'WebsiteDataBucketName', // Optional: export the bucket name for use in other stacks
     });
+
+    new cdk.CfnOutput(this, 'WebSocketURL', {
+      value: webSocketStage.callbackUrl,
+      description: 'WebSocket URL'
+    });
+
+    new cdk.CfnOutput(this, 'AmplifyAppURL', {
+      value: `https://${mainBranch.branchName}.${amplifyApp.defaultDomain}`,
+      description: 'Amplify Application URL'
+    });
+
 
     // output the WebSocket API URL
     new cdk.CfnOutput(this, 'WebSocketApiUrl', {
