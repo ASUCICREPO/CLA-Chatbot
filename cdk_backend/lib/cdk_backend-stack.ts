@@ -18,6 +18,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     const githubToken = this.node.tryGetContext('githubToken');
     const githubOwner = this.node.tryGetContext('githubOwner');
     const githubRepo = this.node.tryGetContext('githubRepo');
+    
     if (!githubToken || !githubOwner) {
       throw new Error('Please provide the githubToken, and githubOwner in the context. like this: cdk deploy -c githubToken=your-github-token -c githubOwner=your-github-owner -c githubRepo=your-github-repo');
     }

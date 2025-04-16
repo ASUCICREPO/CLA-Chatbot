@@ -1,0 +1,40 @@
+digraph INFRA {
+  node [ color = "black", fillcolor = "#E6E6E6", height =1, style = "filled,bold,rounded", fontname = "Arial" ];
+  "WebsiteData" [ label = "WebsiteData
+(AWS::S3::Bucket)", shape =cylinder, fillcolor = "#FFF5CD" ];
+  "InmateDataKnowledgeBase12" [ label = "InmateDataKnowledgeBase12
+(AWS::Bedrock::KnowledgeBase)", shape =rectangle ];
+  "KnowledgeBaseDataSource" [ label = "KnowledgeBaseDataSource
+(AWS::Bedrock::DataSource)", shape =rectangle ];
+  "Agent-PDF" [ label = "Agent-PDF
+(AWS::Bedrock::Agent)", shape =rectangle ];
+  "PDFAgentAlias" [ label = "PDFAgentAlias
+(AWS::Bedrock::AgentAlias)", shape =rectangle ];
+  "SupervisorAgentWithCodeInterpreter" [ label = "SupervisorAgentWithCodeInterpreter
+(AWS::Bedrock::Agent)", shape =rectangle ];
+  "InmateSummaryScrapper" [ label = "InmateSummaryScrapper
+(AWS::Lambda::Function)", shape =rectangle, fillcolor = "#B7E0FF" ];
+  "CondemnedInmateListScrapper" [ label = "CondemnedInmateListScrapper
+(AWS::Lambda::Function)", shape =rectangle, fillcolor = "#B7E0FF" ];
+  "ScoreJailRosterScraper" [ label = "ScoreJailRosterScraper
+(AWS::Lambda::Function)", shape =rectangle, fillcolor = "#B7E0FF" ];
+  "BedrockAIAgent" [ label = "BedrockAIAgent
+(AWS::Lambda::Function)", shape =rectangle, fillcolor = "#B7E0FF" ];
+  "pc-web-socket-handler" [ label = "pc-web-socket-handler
+(AWS::Lambda::Function)", shape =rectangle, fillcolor = "#B7E0FF" ];
+  "cla-web-socket-api" [ label = "cla-web-socket-api
+(AWS::ApiGatewayV2::WebSocketApi)", shape =rectangle, fillcolor = "#E78F81" ];
+  "cla-web-socket-stage" [ label = "cla-web-socket-stage
+(AWS::ApiGatewayV2::Stage)", shape =rectangle, fillcolor = "#E78F81" ];
+  "InmateDataKnowledgeBase12" -> "WebsiteData";
+  "KnowledgeBaseDataSource" -> "InmateDataKnowledgeBase12";
+  "KnowledgeBaseDataSource" -> "WebsiteData";
+  "Agent-PDF" -> "InmateDataKnowledgeBase12";
+  "PDFAgentAlias" -> "Agent-PDF";
+  "InmateSummaryScrapper" -> "WebsiteData";
+  "CondemnedInmateListScrapper" -> "WebsiteData";
+  "ScoreJailRosterScraper" -> "WebsiteData";
+  "BedrockAIAgent" -> "WebsiteData";
+  "pc-web-socket-handler" -> "BedrockAIAgent";
+  "cla-web-socket-stage" -> "cla-web-socket-api";
+}
