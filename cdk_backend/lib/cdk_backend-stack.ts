@@ -7,9 +7,11 @@ import { aws_bedrock as bedrock2 } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as apigatewayv2 from 'aws-cdk-lib/aws-apigatewayv2';
 import * as apigatewayv2_integrations from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import { bedrock } from '@cdklabs/generative-ai-cdk-constructs';
+import { bedrock as bedrock } from '@cdklabs/generative-ai-cdk-constructs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as amplify from '@aws-cdk/aws-amplify-alpha';
+
+
 
 export class CdkBackendStack1 extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -28,9 +30,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       description: 'GitHub Personal Access Token for Amplify',
       secretStringValue: cdk.SecretValue.unsafePlainText(githubToken)
     });
-
-
-    
 
     const aws_region = cdk.Stack.of(this).region;
     const accountId = cdk.Stack.of(this).account;
@@ -56,7 +55,7 @@ export class CdkBackendStack1 extends cdk.Stack {
         // amazonq-ignore-next-line
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonBedrockFullAccess'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonOpenSearchServiceFullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('NeptuneFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchFullAccessV2'),
       ]});
 
@@ -77,18 +76,34 @@ export class CdkBackendStack1 extends cdk.Stack {
           iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchFullAccessV2'),
         ]});
 
-    const kb = new bedrock.VectorKnowledgeBase(this, 'KnowledgeBase', {
-      embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V2_1024,
-      instruction: 'Use this knowledge base to answer questions about CSV and PDF related Inmate Data.',
-      name: 'InmateDataKnowledgeBase12',
+    const graphKb = new bedrock.GraphKnowledgeBase(this, 'GraphRagKB', {
+      name: 'InmateDataGraphKB',
       description: 'A knowledge base for Inmate Data combied PDF and CSV',
-      existingRole: bedrockRole,
-    });
-    
-    const DataSource = new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
-      name: 'InmateDataKnowledgeBase12',  
-      knowledgeBaseId: kb.knowledgeBaseId,
+      embeddingModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V2_1024,
+      instruction: 'Use the Neptune-backed graph to answer inmate-data queries.',
+  });
 
+    
+    // const DataSource = new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
+    //   name: 'InmateDataKnowledgeBase12',  
+    //   knowledgeBaseId: graphKb.knowledgeBaseId,
+
+    //   dataSourceConfiguration: {
+    //     type: 'S3',
+    //     s3Configuration: {
+    //       bucketArn: WebsiteData.bucketArn,
+    //     },
+    //   },
+    //   vectorIngestionConfiguration: {
+    //     parsingConfiguration: {
+    //       parsingStrategy: "BEDROCK_DATA_AUTOMATION",
+    //     },
+    //   },
+    // });
+
+    new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
+      name: 'InmateDataKnowledgeBase12',
+      knowledgeBaseId: graphKb.knowledgeBaseId,
       dataSourceConfiguration: {
         type: 'S3',
         s3Configuration: {
@@ -96,11 +111,26 @@ export class CdkBackendStack1 extends cdk.Stack {
         },
       },
       vectorIngestionConfiguration: {
+        // keep your existing parsing config
         parsingConfiguration: {
-          parsingStrategy: "BEDROCK_DATA_AUTOMATION",
+          parsingStrategy: 'BEDROCK_DATA_AUTOMATION',
+        },
+        // ← required for Neptune Analytics (GraphRAG)
+        contextEnrichmentConfiguration: {
+          type: 'BEDROCK_FOUNDATION_MODEL',
+          bedrockFoundationModelConfiguration: {
+            // use the Claude 3 Haiku model for chunk/entity extraction with aws region
+            modelArn: `arn:aws:bedrock:${aws_region}::foundation-model/anthropic.claude-3-haiku:1`,
+            enrichmentStrategyConfiguration: {
+
+              method: 'CHUNK_ENTITY_EXTRACTION',
+            },
+          },
         },
       },
     });
+
+    
     // cross region inference profile from genai cdk
     const cris_nova = bedrock.CrossRegionInferenceProfile.fromConfig({
       geoRegion: bedrock.CrossRegionInferenceProfileRegion.US,
@@ -112,28 +142,25 @@ export class CdkBackendStack1 extends cdk.Stack {
       model: bedrock.BedrockFoundationModel.ANTHROPIC_CLAUDE_3_5_SONNET_V2_0,
     });
 
+
+
     const PDF_agent = new bedrock.Agent(this, 'Agent-PDF', {
-      name: 'PDFAgent-with-knowledge-base',
+      name: 'PDFAgent-with-knowledge-base-v1',
       description: 'This agent is responsible for processing non-quantitative queries using PDF files and knowledge base.',
       foundationModel: cris_nova,
       shouldPrepareAgent: true,
-      knowledgeBases: [kb],
+      knowledgeBases: [graphKb],
       existingRole: bedrockRoleAgentPDF,
       instruction: 'You are a knowledgeable assistant that uses a knowledge base of PDF documents to answer user queries. When a user asks a question, retrieve relevant PDF documents from the knowledge base, filter out any CSV files, summarize the content of the remaining PDF documents, and provide a clear and concise answer based solely on the PDF data.',
     });
     
     const PDF_agent_Alias = new bedrock.AgentAlias(this, 'PDFAgentAlias', {
       agent: PDF_agent,
-      aliasName: "ProductionPDFAgent",
+      aliasName: "ProductionPDFAgentv1",
       description: 'Production alias for the PDF agent',
     })
 
-    //new bedrock2.CfnAgentAlias(this, 'PDFAgentAlias', {
-    //   agentId: PDF_agent.agentId,
-    //   agentAliasName: 'ProductionPDFAgent',
-    //   description: 'Alias for the PDF agent',
-      
-    // }); 
+
 
 
 
@@ -173,7 +200,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     `The PDF-Agent handles non-quantitative queries by retrieving and synthesizing information exclusively from PDF documents in the Knowledge Base. When a user asks for summaries, explanations, or textual analyses, or if the you cannot process the query, PDF-Agent ignores CSV files entirely and only answers based on textual information in PDF.`
 
     const SupervisorAgentWithCodeInterpreter = new bedrock.Agent(this, 'SupervisorAgentWithCodeInterpreter', {
-      name: 'SupervisorAgentWithCodeInterpreter',
+      name: 'SupervisorAgentWithCodeInterpreterv1',
       description: 'This agent is responsible for processing quantitative queries using CSV files and routing non-quantitative queries to the PDF agent.',
       instruction: prompt_for_supervisor,
       foundationModel: cris_claude,
@@ -190,7 +217,7 @@ export class CdkBackendStack1 extends cdk.Stack {
         new bedrock.AgentCollaborator({
           agentAlias: PDF_agent_Alias,
           collaborationInstruction: prompt_collaboration_Supervisor_X_PDF,
-          collaboratorName: 'PDFAgentWithKnowledgeBase',
+          collaboratorName: 'PDFAgentWithKnowledgeBase-v1',
           relayConversationHistory: true,
         }),
       ],
@@ -198,25 +225,9 @@ export class CdkBackendStack1 extends cdk.Stack {
 
     const Supervisor_Agent_Alias = new bedrock.AgentAlias(this, 'SupervisorAgentAlias', {
       agent: SupervisorAgentWithCodeInterpreter,
-      aliasName: "ProductionSupervisorAgent",
+      aliasName: "ProductionSupervisorAgentv1",
       description: 'Production alias for the Supervisor agent',
     }); 
-
-    const pdfAgentAliasCfn = PDF_agent_Alias.node.tryFindChild('Resource') as cdk.CfnResource;
-    if (pdfAgentAliasCfn) {
-      pdfAgentAliasCfn.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
-    } else {
-      console.warn('PDF Agent Alias did not expose an underlying CfnResource; you may need to handle removal manually.');
-    }
-
-    const supervisorAgentAliasCfn = Supervisor_Agent_Alias.node.tryFindChild('Resource') as cdk.CfnResource;
-    if (supervisorAgentAliasCfn) {
-      supervisorAgentAliasCfn.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
-    } else {
-      console.warn('Supervisor Agent Alias did not expose an underlying CfnResource; you may need to handle removal manually.');
-    }
-
-
 
 
     const webSocketApi = new apigatewayv2.WebSocketApi(this, 'cla-web-socket-api', {
@@ -276,7 +287,7 @@ export class CdkBackendStack1 extends cdk.Stack {
         BUCKET_NAME: WebsiteData.bucketName,
         REGION: aws_region,
         URL: webSocketStage.callbackUrl,
-        KB_ID: kb.knowledgeBaseId,
+        KB_ID: graphKb.knowledgeBaseId,
         SUPERVISOR_AGENT_ID: SupervisorAgentWithCodeInterpreter.agentId,
         SUPERVISOR_AGENT_ALIAS_ID: Supervisor_Agent_Alias.aliasId,
       },
@@ -389,7 +400,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     });
     // knowledge base id
     new cdk.CfnOutput(this, 'KnowledgeBaseId', {
-      value: kb.knowledgeBaseId,
+      value: graphKb.knowledgeBaseId,
       description: 'The ID of the knowledge base',
       exportName: 'KnowledgeBaseId', // Optional: export the knowledge base ID for use in other stacks
     });
