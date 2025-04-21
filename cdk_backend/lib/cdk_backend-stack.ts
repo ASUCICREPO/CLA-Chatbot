@@ -12,7 +12,6 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as amplify from '@aws-cdk/aws-amplify-alpha';
 
 
-
 export class CdkBackendStack1 extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -55,9 +54,15 @@ export class CdkBackendStack1 extends cdk.Stack {
         // amazonq-ignore-next-line
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonBedrockFullAccess'),
-        iam.ManagedPolicy.fromAwsManagedPolicyName('NeptuneFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchFullAccessV2'),
       ]});
+
+    bedrockRole.addToPolicy(new iam.PolicyStatement({
+        actions:   ['neptune-graph:*'],
+        resources: ['*'],
+      }));
+
+
 
       const bedrockRoleAgentPDF = new iam.Role(this, 'BedrockRole3', {
       assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
@@ -67,6 +72,7 @@ export class CdkBackendStack1 extends cdk.Stack {
         iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonBedrockFullAccess'),
         iam.ManagedPolicy.fromAwsManagedPolicyName('CloudWatchFullAccessV2'),
       ]});
+
       const bedrockRoleAgentSupervisor = new iam.Role(this, 'BedrockRole', {
         assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
         managedPolicies: [
@@ -81,6 +87,7 @@ export class CdkBackendStack1 extends cdk.Stack {
       description: 'A knowledge base for Inmate Data combied PDF and CSV',
       embeddingModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V2_1024,
       instruction: 'Use the Neptune-backed graph to answer inmate-data queries.',
+      existingRole: bedrockRole,
   });
 
     
@@ -104,6 +111,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
       name: 'InmateDataKnowledgeBase12',
       knowledgeBaseId: graphKb.knowledgeBaseId,
+      
       dataSourceConfiguration: {
         type: 'S3',
         s3Configuration: {
@@ -120,7 +128,7 @@ export class CdkBackendStack1 extends cdk.Stack {
           type: 'BEDROCK_FOUNDATION_MODEL',
           bedrockFoundationModelConfiguration: {
             // use the Claude 3 Haiku model for chunk/entity extraction with aws region
-            modelArn: `arn:aws:bedrock:${aws_region}::foundation-model/anthropic.claude-3-haiku:1`,
+            modelArn: bedrock.BedrockFoundationModel.ANTHROPIC_CLAUDE_HAIKU_V1_0.modelArn,
             enrichmentStrategyConfiguration: {
 
               method: 'CHUNK_ENTITY_EXTRACTION',
@@ -130,6 +138,36 @@ export class CdkBackendStack1 extends cdk.Stack {
       },
     });
 
+    const guardrail = new bedrock.Guardrail(this, 'bedrockGuardrails', {
+      name: 'ChatbotGuardrails',
+      blockedOutputsMessaging: 'I am sorry, but I cannot provide that information. Plase ask me something else.',
+    });
+    
+    const DEFAULT_INPUT  = bedrock.ContentFilterStrength.HIGH;
+    const DEFAULT_OUTPUT = bedrock.ContentFilterStrength.MEDIUM;
+    const INPUT_MODS  = [bedrock.ModalityType.TEXT, bedrock.ModalityType.IMAGE];
+    const OUTPUT_MODS = [bedrock.ModalityType.TEXT];
+
+    // Grab just the string‐enum members
+    const allFilters = Object
+      .values(bedrock.ContentFilterType)
+      .filter((f): f is bedrock.ContentFilterType => typeof f === 'string');
+
+    for (const type of allFilters) {
+      // enforce AWS rule: PROMPT_ATTACK => responseStrength NONE
+      const responseStrength =
+        type === bedrock.ContentFilterType.PROMPT_ATTACK
+          ? bedrock.ContentFilterStrength.NONE
+          : DEFAULT_OUTPUT;
+
+      guardrail.addContentFilter({
+        type,
+        inputStrength:  DEFAULT_INPUT,
+        outputStrength: responseStrength,
+        inputModalities:  INPUT_MODS,
+        outputModalities: OUTPUT_MODS,
+      });
+    }
     
     // cross region inference profile from genai cdk
     const cris_nova = bedrock.CrossRegionInferenceProfile.fromConfig({
@@ -142,6 +180,19 @@ export class CdkBackendStack1 extends cdk.Stack {
       model: bedrock.BedrockFoundationModel.ANTHROPIC_CLAUDE_3_5_SONNET_V2_0,
     });
 
+    const prompt_for_PDF_agent = 
+    `You are an AI assistant with access to a library of PDF documents. When a user asks a question:
+    1. Search the knowledge base for relevant PDF files only; ignore any CSVs or other formats.
+    2. Extract and summarize the key information from those PDFs.
+    3. Answer the user clearly and concisely, citing only the PDF-sourced data.
+    4. If no PDF contains the requested information, reply:
+      “I couldn't find any relevant information in the available PDF documents I have.”
+    5. <IMPORTANT> If you find multiple data sources that differ by any dimension—such as year, demographic group (e.g., male/female), region, or other categories—list the dimensions and the available options, then ask:
+      “I found data for multiple [dimensions]: [options]. Which [dimension] would you like to focus on?”
+      For example:
+        - “I found data for years: 2018, 2019, 2020. Which year are you interested in?”
+        - “I found data for groups: male, female, combined. Which group should I use?”</IMPORTANT>`
+
 
 
     const PDF_agent = new bedrock.Agent(this, 'Agent-PDF', {
@@ -151,7 +202,7 @@ export class CdkBackendStack1 extends cdk.Stack {
       shouldPrepareAgent: true,
       knowledgeBases: [graphKb],
       existingRole: bedrockRoleAgentPDF,
-      instruction: 'You are a knowledgeable assistant that uses a knowledge base of PDF documents to answer user queries. When a user asks a question, retrieve relevant PDF documents from the knowledge base, filter out any CSV files, summarize the content of the remaining PDF documents, and provide a clear and concise answer based solely on the PDF data.',
+      instruction: prompt_for_PDF_agent,
     });
     
     const PDF_agent_Alias = new bedrock.AgentAlias(this, 'PDFAgentAlias', {
@@ -159,11 +210,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       aliasName: "ProductionPDFAgentv1",
       description: 'Production alias for the PDF agent',
     })
-
-
-
-
-
 
     const prompt_for_supervisor = 
     `You are the Supervisor Agent, acting as the primary CSV processing agent. Your role is to process quantitative, data-driven queries using attached CSV files via the Code Interpreter. If the CSV-based approach fails (e.g., due to missing data, insufficient columns, or inability to compute the required result), then delegate the query to the agent PDF-Agent-With-KB for a text-based response and then give the final answer.
@@ -198,7 +244,7 @@ export class CdkBackendStack1 extends cdk.Stack {
 
     const prompt_collaboration_Supervisor_X_PDF = 
     `The PDF-Agent handles non-quantitative queries by retrieving and synthesizing information exclusively from PDF documents in the Knowledge Base. When a user asks for summaries, explanations, or textual analyses, or if the you cannot process the query, PDF-Agent ignores CSV files entirely and only answers based on textual information in PDF.`
-
+    
     const SupervisorAgentWithCodeInterpreter = new bedrock.Agent(this, 'SupervisorAgentWithCodeInterpreter', {
       name: 'SupervisorAgentWithCodeInterpreterv1',
       description: 'This agent is responsible for processing quantitative queries using CSV files and routing non-quantitative queries to the PDF agent.',
@@ -207,7 +253,8 @@ export class CdkBackendStack1 extends cdk.Stack {
       shouldPrepareAgent: true,
       userInputEnabled: true,
       codeInterpreterEnabled: true,
-      existingRole: bedrockRoleAgentPDF,
+      guardrail: guardrail,
+      existingRole: bedrockRoleAgentSupervisor,
       agentCollaboration: bedrock.AgentCollaboratorType.SUPERVISOR_ROUTER,
       memory: bedrock.Memory.sessionSummary({
         maxRecentSessions:10,
@@ -378,7 +425,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebsiteDataBucketName', {
       value: WebsiteData.bucketName,
       description: 'The name of the S3 bucket where website data will be stored',
-      exportName: 'WebsiteDataBucketName', // Optional: export the bucket name for use in other stacks
+      exportName: 'WebsiteDataBucketName',
     });
 
     new cdk.CfnOutput(this, 'WebSocketURL', {
@@ -396,25 +443,25 @@ export class CdkBackendStack1 extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebSocketApiUrl', {
       value: webSocketApi.apiEndpoint,
       description: 'The URL of the WebSocket API',
-      exportName: 'WebSocketApiUrl', // Optional: export the API URL for use in other stacks
+      exportName: 'WebSocketApiUrl', 
     });
     // knowledge base id
     new cdk.CfnOutput(this, 'KnowledgeBaseId', {
       value: graphKb.knowledgeBaseId,
       description: 'The ID of the knowledge base',
-      exportName: 'KnowledgeBaseId', // Optional: export the knowledge base ID for use in other stacks
+      exportName: 'KnowledgeBaseId', 
     });
     // supervisor agent id
     new cdk.CfnOutput(this, 'SupervisorAgentId', {
       value: SupervisorAgentWithCodeInterpreter.agentId,
       description: 'The ID of the Supervisor agent',
-      exportName: 'SupervisorAgentId', // Optional: export the agent ID for use in other stacks
+      exportName: 'SupervisorAgentId', 
     });
     // pdf agent id
     new cdk.CfnOutput(this, 'PDFAgentId', {
       value: PDF_agent.agentId,
       description: 'The ID of the PDF agent',
-      exportName: 'PDFAgentId', // Optional: export the agent ID for use in other stacks
+      exportName: 'PDFAgentId', 
     });
 
   }
