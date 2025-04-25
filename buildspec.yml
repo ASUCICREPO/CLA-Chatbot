@@ -2,12 +2,15 @@ version: 0.2
 
 phases:
   install:
-    runtime-versions:
+    runtime-versions:  
       nodejs: 20
+
     commands:
       - echo "Installing AWS CDK CLI..."
       - npm install -g aws-cdk
-      - echo "Installing dependencies..."
+      - echo "Changing into cdk_backend directory"
+      - cd cdk_backend
+      - echo "Installing npm dependencies"
       - npm ci
 
   pre_build:
@@ -15,19 +18,21 @@ phases:
       - echo "Building TypeScript sources"
       - 'echo "GitHub Owner is: $GITHUB_OWNER"'
       - npm run build
-      - echo "Bootstrapping CDK (no approval)…"
+      - echo "Bootstrapping CDK (no approval)..."
       - >-
         cdk bootstrap --require-approval never
         -c githubToken=$GITHUB_TOKEN
         -c githubOwner=$GITHUB_OWNER
         -c githubRepo=$GITHUB_REPO || true
-
   build:
     commands:
-      - echo "Deploying CDK stacks with context…"
+      - echo "Deploying CDK stacks... now its the waiting time..."
       - >-
         cdk deploy --all --require-approval never
         -c githubToken=$GITHUB_TOKEN
         -c githubOwner=$GITHUB_OWNER
         -c githubRepo=$GITHUB_REPO
 
+  post_build:
+    commands:
+      - echo "CDK deployment complete."
