@@ -3,15 +3,13 @@ digraph INFRA {
   "WebsiteData" [ label = "WebsiteData
 (AWS::S3::Bucket)", shape =cylinder, fillcolor = "#FFF5CD" ];
   "InmateDataKnowledgeBase12" [ label = "InmateDataKnowledgeBase12
-(AWS::Bedrock::KnowledgeBase)", shape =rectangle ];
+(AWS::Bedrock::KnowledgeBase)", shape =cylinder, fillcolor = "#FFCFB3" ];
   "KnowledgeBaseDataSource" [ label = "KnowledgeBaseDataSource
-(AWS::Bedrock::DataSource)", shape =rectangle ];
+(AWS::Bedrock::DataSource)", shape =cylinder, fillcolor = "#FFCFB3" ];
   "Agent-PDF" [ label = "Agent-PDF
-(AWS::Bedrock::Agent)", shape =rectangle ];
+(AWS::Bedrock::Agent)", shape =rectangle, fillcolor = "#B7E0FF" ];
   "PDFAgentAlias" [ label = "PDFAgentAlias
-(AWS::Bedrock::AgentAlias)", shape =rectangle ];
-  "SupervisorAgentWithCodeInterpreter" [ label = "SupervisorAgentWithCodeInterpreter
-(AWS::Bedrock::Agent)", shape =rectangle ];
+(AWS::Bedrock::AgentAlias)", shape =rectangle, fillcolor = "#B7E0FF" ];
   "InmateSummaryScrapper" [ label = "InmateSummaryScrapper
 (AWS::Lambda::Function)", shape =rectangle, fillcolor = "#B7E0FF" ];
   "CondemnedInmateListScrapper" [ label = "CondemnedInmateListScrapper

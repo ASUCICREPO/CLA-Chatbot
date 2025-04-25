@@ -5,10 +5,47 @@ set -euo pipefail
 # 1. Prompt for all required values
 # --------------------------------------------------
 
-# 1) If GITHUB_URL isn’t already set, prompt for it
+# 1) Prompt for GITHUB_URL if unset
 if [ -z "${GITHUB_URL:-}" ]; then
-  read -rp "Enter the GitHub repository URL, preferably after forking the repository to your enviorment (e.g. format, https://github.com/GITHUB_OWNER/GITHUB_REPO): " GITHUB_URL
+  read -rp "Enter GitHub repository URL (e.g. https://github.com/OWNER/REPO or git@github.com:OWNER/REPO.git): " GITHUB_URL
 fi
+
+# 2) Normalize URL (strip .git and any trailing slash)
+clean_url=${GITHUB_URL%.git}
+clean_url=${clean_url%/}
+
+# 3) Extract the path part (owner/repo) for HTTPS or SSH URLs
+if [[ $clean_url =~ ^https://github\.com/([^/]+/[^/]+)$ ]]; then
+  path="${BASH_REMATCH[1]}"
+elif [[ $clean_url =~ ^git@github\.com:([^/]+/[^/]+)$ ]]; then
+  path="${BASH_REMATCH[1]}"
+else
+  echo "Unable to parse owner/repo from '$GITHUB_URL'"
+  read -rp "Enter GitHub owner manually: " GITHUB_OWNER
+  read -rp "Enter GitHub repo  manually: " GITHUB_REPO
+  echo "→ Using GITHUB_OWNER=$GITHUB_OWNER"
+  echo "→ Using GITHUB_REPO=$GITHUB_REPO"
+  exit 0
+fi
+
+# 4) Split into owner and repo
+GITHUB_OWNER=${path%%/*}
+GITHUB_REPO=${path##*/}
+
+# 5) Confirm detection
+echo "Detected GitHub Owner: $GITHUB_OWNER"
+echo "Detected GitHub Repo:  $GITHUB_REPO"
+read -rp "Is this correct? (y/n): " CONFIRM
+CONFIRM=$(printf '%s' "$CONFIRM" | tr '[:upper:]' '[:lower:]')
+
+if [[ "$CONFIRM" != "y" && "$CONFIRM" != "yes" ]]; then
+  read -rp "Enter GitHub owner manually: " GITHUB_OWNER
+  read -rp "Enter GitHub repo  manually: " GITHUB_REPO
+fi
+
+# 6) Continue with your CDK flow
+echo "→ Final GITHUB_OWNER=$GITHUB_OWNER"
+echo "→ Final GITHUB_REPO=$GITHUB_REPO"
 
 # 2) Same for PROJECT_NAME
 if [ -z "${PROJECT_NAME:-}" ]; then
@@ -20,13 +57,15 @@ if [ -z "${GITHUB_TOKEN:-}" ]; then
   read -rp "Enter CDK context githubToken (Please check out the documentation for how to obtain githubToken): " GITHUB_TOKEN
 fi
 
-if [ -z "${GITHUB_OWNER:-}" ]; then
-  read -rp "Enter CDK context githubOwner: (https://github.com/GITHUB_OWNER/GITHUB_REPO) :  " GITHUB_OWNER
-fi
+# if [ -z "${GITHUB_OWNER:-}" ]; then
+#   read -rp "Enter CDK context githubOwner: (https://github.com/GITHUB_OWNER/GITHUB_REPO) :  " GITHUB_OWNER
+# fi
 
-if [ -z "${GITHUB_REPO:-}" ]; then
-  read -rp "Enter CDK context githubRepo: (https://github.com/GITHUB_OWNER/GITHUB_REPO) :  " GITHUB_REPO
-fi
+# if [ -z "${GITHUB_REPO:-}" ]; then
+#   read -rp "Enter CDK context githubRepo: (https://github.com/GITHUB_OWNER/GITHUB_REPO) :  " GITHUB_REPO
+# fi
+
+
 
 if [ -z "${ACTION:-}" ]; then
   read -rp "Would you like to [deploy] or [destroy] the stacks? Type deploy or destroy " ACTION
