@@ -1,5 +1,5 @@
 import React from "react";
-import { Grid, Avatar, Typography } from "@mui/material";
+import { Grid, Avatar } from "@mui/material";
 import BotAvatar from "../../Assets/BotAvatar.png";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";

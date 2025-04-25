@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { TEXT } from "../utilities/constants";
 import { useLanguage } from "../utilities/LanguageContext"; // Adjust the import path
-import { Box, Button, Grid } from "@mui/material";
+import { Box, Grid } from "@mui/material";
 
 const shuffleArray = (array) => {
   return array.sort(() => Math.random() - 0.5);

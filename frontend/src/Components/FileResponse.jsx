@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { Box, Typography, Grid, Avatar, IconButton } from "@mui/material";
-import DownloadIcon from "@mui/icons-material/Download";
+import { Box, Typography, Grid, Avatar,  } from "@mui/material";
 import BotAvatar from "../Assets/BotAvatar.png"; // Adjust the path based on your file structure
 import UserAvatar from "../Assets/UserAvatar.svg"; // Adjust the path based on your file structure
 
@@ -57,6 +56,7 @@ const getFileIcon = (fileType) => {
 };
 
 const FileHandler = ({ message }) => {
+  // eslint-disable-next-line
   const [hoveredFile, setHoveredFile] = useState(null);
   const handlePreview = (file) => {
     const byteCharacters = atob(file.base64);
