@@ -11,7 +11,6 @@ import { bedrock as bedrock } from '@cdklabs/generative-ai-cdk-constructs';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as amplify from '@aws-cdk/aws-amplify-alpha';
 
-
 export class CdkBackendStack1 extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -148,12 +147,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       });
     }
     
-    // cross region inference profile from genai cdk
-    const cris_nova = bedrock.CrossRegionInferenceProfile.fromConfig({
-      geoRegion: bedrock.CrossRegionInferenceProfileRegion.US,
-      model: bedrock.BedrockFoundationModel.AMAZON_NOVA_PRO_V1,
-    });
-
     const cris_claude = bedrock.CrossRegionInferenceProfile.fromConfig({
       geoRegion: bedrock.CrossRegionInferenceProfileRegion.US,
       model: bedrock.BedrockFoundationModel.ANTHROPIC_CLAUDE_3_5_SONNET_V2_0,
@@ -175,7 +168,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     const PDF_agent = new bedrock.Agent(this, 'Agent-PDF', {
       name: 'PDFAgent-with-knowledge-base-v1',
       description: 'This agent is responsible for processing non-quantitative queries using PDF files and knowledge base.',
-      foundationModel: cris_nova,
+      foundationModel: cris_claude,
       shouldPrepareAgent: true,
       knowledgeBases: [graphKb],
       existingRole: bedrockRoleAgentPDF,

@@ -1,4 +1,4 @@
-# AI-Powered Inmate Data Analysis System with Real-time Chat Interface
+# Multi AI Agent Powered Inmate Data Analysis System with Real-time Chat Interface
 
 This project provides a comprehensive system for analyzing inmate population data through an AI-powered chat interface. It combines AWS Bedrock's AI capabilities with web scraping functionality to deliver real-time insights about inmate statistics, demographics, and trends from publicly available correctional facility data.
 
@@ -39,16 +39,96 @@ The system consists of a React-based frontend that provides an intuitive chat in
             └── TranscriptContext.jsx # Chat transcript management
 ```
 
-## Usage Instructions
-### Prerequisites
-- Node.js 14.x or later
-- AWS CLI configured with appropriate credentials
-- AWS CDK CLI installed (`npm install -g aws-cdk`)
-- Docker installed and running (for Lambda function builds)
-- GitHub account with personal access token
-- Python 3.12 for Lambda functions
+# Deployment Instructions
+## Common Prerequisites
 
-### Installation
+- Fork this repository to your own GitHub account (required for deployment and CI/CD):
+  1. Navigate to https://github.com/ASUCICREPO/CLA-Chatbot
+  2. Click the "Fork" button in the top right corner
+  3. Select your GitHub account as the destination
+  4. Wait for the forking process to complete
+  5. You'll now have your own copy at https://github.com/YOUR-USERNAME/CLA-Chatbot
+
+- Obtain a GitHub personal access token with repo permissions (needed for CDK deployment):
+  1. Go to GitHub Settings > Developer Settings > Personal Access Tokens > Tokens (classic)
+  2. Click "Generate new token (classic)"
+  3. Give the token a name and select the "repo" and "admin:repo_hook" scope
+  4. Click "Generate token" and save the token securely
+  For detailed instructions, see:
+  - https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
+
+- Enable the following AWS Bedrock models in your AWS account:
+  - `TITAN_EMBED_TEXT_V2_1024`
+  - `ANTHROPIC_CLAUDE_HAIKU_V1_0`
+  - `ANTHROPIC_CLAUDE_3_5_SONNET_V2_0`
+  
+  To request access to these models:
+  1. Navigate to the AWS Bedrock console
+  2. Click "Model access" in the left navigation pane
+  3. Click "Manage model access"
+  4. Find each model in the list and select the checkbox next to it
+  5. Click "Save changes" at the bottom of the page
+  6. Wait for model access to be granted (usually within minutes)
+  7. Verify access by checking the "Status" column shows "Access granted"
+
+  Note: If you don't see the option to enable a model, ensure your AWS account 
+  and region support Bedrock model access. Contact AWS Support if needed.
+- AWS Account Permissions 
+   - Ensure permissions to create and manage AWS resources like S3, Lambda, Knowledge Bases, AI Agents, Neptune, and Amplify, Websocket , and etc.  
+   - [AWS IAM Policies and Permissions](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html)
+
+
+## Deployment Using AWS CodeBuild and AWS CLI
+### Prerequisites
+
+- Have access to CodeBuild and AWS Cloudshell
+
+### Deployment
+
+1. Open AWS CloudShell in your AWS Console:
+   - Click the CloudShell icon in the AWS Console navigation bar
+   - Wait for the CloudShell environment to initialize
+
+2. Clone the repository:
+```bash
+git clone https://github.com/ASUCICREPO/CLA-Chatbot
+cd CLA-Chatbot/
+```
+
+3. Deploy using the deployment script (recommended):
+```bash
+chmod +x deploy.sh
+./deploy.sh
+```
+
+## Manual CDK Deployment
+### Prerequisites
+
+1. **AWS CLI**: To interact with AWS services and set up credentials.
+
+   - [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html)
+     
+2. **npm**  
+   - npm is required to install AWS CDK. Install npm by installing Node.js:  
+     - [Download Node.js](https://nodejs.org/) (includes npm).  
+   - Verify npm installation:  
+     ```bash
+     npm --version
+     ```
+3. **AWS CDK**: For defining cloud infrastructure in code.
+   - [Install AWS CDK](https://docs.aws.amazon.com/cdk/v2/guide/getting_started.html)  
+     ```bash
+     npm install -g aws-cdk
+     ```
+
+4. **Docker**: Required to build and run Docker images for the ECS tasks.  
+   - [Install Docker](https://docs.docker.com/get-docker/)  
+   - Verify installation:  
+     ```bash
+     docker --version
+     ```
+
+### Deployment
 
 1. Clone the repository:
 ```bash
@@ -56,42 +136,55 @@ git clone https://github.com/ASUCICREPO/CLA-Chatbot
 cd CLA-Chatbot/
 ```
 
-2. Deploy using the deployment script (recommended):
-```bash
-chmod +x deploy.sh
-./deploy.sh
-```
+2. **Set Up Your Environment**:
+   - Configure AWS CLI with your AWS account credentials:
+     ```bash
+     aws configure
+     ```
 
-Alternatively, for manual deployment, follow these steps:
-
-1. Install dependencies:
+3. Install dependencies:
 ```bash
 cd cdk_backend
 npm install
 ```
 
-2. Bootstrap CDK:
+4. Bootstrap CDK:
 ```bash
 cdk bootstrap -c githubToken=<your-token> -c githubOwner=<your-github-username> -c githubRepo=<your-repo-name>
 ```
 
-3. Deploy the stack:
+5. Deploy the stack:
 ```bash
 cdk deploy -c githubToken=<your-token> -c githubOwner=<your-github-username> -c githubRepo=<your-repo-name>
 ```
 
-### More Detailed Examples
-1. Query inmate demographics:
-```
-"What are the top offenses by county?"
-"Compare the suicide rate between 2015 and the previous year"
-```
+## Usage
 
-2. Analyze population trends:
-```
-"What is the average daily population?"
-"Show me the trend of inmate population over the last 5 years"
-```
+Once the infrastructure is deployed using either of the two approaches:
+
+1. Upload any CSV / PDF files to the S3 Bucket
+
+2. Sync the Knowledge Base:
+   - Go to AWS Console > Bedrock > Knowledge bases
+   - Select the knowledge base created by the stack
+   - Click "Sync data sources" button
+   - Wait for sync to complete (status will show "Available")
+
+3. Deploy the Frontend:
+   - Go to AWS Console > AWS Amplify
+   - Select the app created by the stack
+   - Click "Run build" under the main branch
+   - Wait for build and deployment to complete
+   - Access the application URL provided by Amplify 
+
+4. Using the Application:
+   - Once frontend deployment is complete, navigate to the Amplify URL
+   - The chat interface will load with example queries
+   - Enter questions about your inmate data, for example:
+     - "What is the total inmate population?"
+     - "Show me demographic breakdown by age"
+     - "What are the most common offenses?" 
+
 
 ### Troubleshooting
 1. WebSocket Connection Issues
@@ -112,134 +205,42 @@ cdk deploy -c githubToken=<your-token> -c githubOwner=<your-github-username> -c 
   - Check if the S3 bucket contains the required data files
   - Ensure the Lambda function has proper IAM permissions
 
-## Data Flow
-The system processes user queries through a multi-stage pipeline that combines real-time data retrieval with AI-powered analysis.
-
-```
-[User Input] -> [WebSocket API] -> [Lambda Handler] -> [Bedrock AI Agent]
-                                                   -> [Knowledge Base]
-                                                   -> [Data Scrapers]
-     [UI] <- [WebSocket Response] <- [Processed Results]
-```
-
-Key component interactions:
-- Frontend sends user queries through WebSocket connection
-- WebSocket handler Lambda routes messages to appropriate processors
-- BedrockAIAgent processes queries using the knowledge base
-- Multiple data scrapers collect and update inmate information periodically
-- Results are streamed back to the UI through WebSocket connection
-
 ## Infrastructure
 
 ![Infrastructure diagram](./docs/infra.svg)
 
-# Serverless Multi-Agent Chatbot Architecture
+## Overview
 
-This architecture weaves together AWS compute, storage, data-processing, and AI services into a real-time, multi-agent chatbot platform. Below is a high-level, step-by-step walk-through of how each component collaborates to ingest data, manage knowledge, run AI agents, and deliver responses to end users.
+- **Data Ingestion**  
+  Python-based scrapers crawl target sites and drop CSV files into an Amazon S3 bucket, which serves as the single source of truth for all documents.
 
----
+- **Knowledge Construction**  
+  Ingested files feed into a Neptune-backed graph as a vector index. Documents are parsed into nodes/relationships and embedded for fast similarity search.
 
-## 1. Data Ingestion & Storage
+- **AI Processing**  
+  A Supervisor Agent (Claude Sonnet 3.5 V2) processes quantitative queries with a code-enabled CSV processor and qualitative queries to a PDF-focused agent. Both agents leverage Bedrock foundation models and shared memory/guardrails.
 
-1. **Lambda Scrapers**  
-   - Python-based Lambdas crawl and fetch target data tables.  
-   - They write raw files into a versioned Amazon S3 bucket (`WebsiteData`).
+- **Real-Time Messaging**  
+  Users connect via a WebSocket API gateway. Incoming messages hit a Lambda “orchestrator” that invokes the appropriate AI agent(s) and streams back responses over the same socket.
 
-2. **S3 as Single Source of Truth**  
-   - All incoming documents (PDFs/CSVs) live in `WebsiteData`.  
-   - You can add more connectors to S3 manually or add more documents in a automated fashion.
-   
----
+- **Front-End Delivery**  
+  A ReactJS chat interface hosted on AWS Amplify opens the WebSocket connection, displays answers instantly, and automatically updates whenever new code is pushed to the GitHub repository.  
 
-## 2. Knowledge Base Construction
 
-1. **Neptune-Backed Graph RAG**  
-   - A Graph Knowledge Base an graph in Amazon Neptune.  
-   - Ingested S3 objects are parsed into nodes and relationships.
+## End-to-End Flow
 
-2. **Vector Embeddings with Bedrock**  
-   - Each document chunk is embedded using a Bedrock foundation model (Titan/Text-V2).  
-   - Embeddings are indexed for fast vector similarity queries.
-
-3. **S3 Data Source Definition**  
-   - A CfnDataSource ties the S3 bucket to the knowledge base,  
-   - Enabling Bedrock Data Automation parsing and context enrichment.
-
----
-
-## 3. AI Guardrails & Content Filtering
-
-1. **Guardrail Construct**  
-   - Enforces input/output safety rules across modalities (TEXT, IMAGE).  
-   - Dynamically adjusts filter strengths for different content-types (e.g., prompt attacks).
-
-2. **Blocked-Output Messaging**  
-   - Custom fallback message when policies are triggered:  
-     > “I am sorry, but I cannot provide that information. Please ask me something else.”
-
----
-
-## 4. Multi-Agent Collaboration
-
-1. **PDF Agent**  
-   - Foundation Model: Amazon Nova Pro (cross-region).  
-   - Role: Answer non-quantitative, text-based queries by retrieving from the graph KB.  
-   - Instruction enforces citation of PDF sources and dimension disambiguation.
-
-2. **Supervisor Agent**  
-   - Foundation Model: Anthropic Claude 3.5 Sonnet (cross-region).  
-   - Code Interpreter enabled for CSV processing:  
-     - Generates dynamic Python code to compute metrics or transform tables.  
-     - Fallback to PDF Agent if CSV processing fails.  
-   - Routes queries based on type (quantitative vs. qualitative).
-
-3. **Agent Aliases**  
-   - Production-ready aliases for both agents, enabling versioning and roll-back.
-
----
-
-## 5. Real-Time Messaging Layer
-
-1. **API Gateway WebSocket**  
-   - Defines a WebSocket API (`cla-web-socket-api`) and a `production` stage.  
-   - Manages client connections and subscriptions.
-
-2. **WebSocket Handler Lambda**  
-   - Invoked on incoming messages (`$default` or custom routes).  
-   - Forwards user queries to the BedrockAIAgent function via its ARN.
-
-3. **BedrockAIAgent Lambda**  
-   - Acts as the orchestration hub:  
-     - Receives WebSocket events.  
-     - Calls Supervisor Agent (and PDF Agent as needed).  
-     - Publishes responses back to the WebSocket connection.
-
----
-
-## 6. Front-End Delivery
-
-1. **AWS Amplify Hosting**  
-   - Connects to your GitHub repo via a GitHub token stored in Secrets Manager.  
-   - Runs `npm ci` → `npm run build` on each `main` branch commit.  
-   - Deploys the React app from `frontend/build`.
-
-2. **Environment Injection**  
-   - Amplify build injects:  
-     - `REACT_APP_WEBSOCKET_API`  
-     - `REACT_APP_BUCKET_NAME`  
-     - Region variables  
-   - Ensures the UI can open WebSocket connections and fetch assets from S3.
-
----
-
-## 7. End-to-End Flow
+```
+[User Input] -> [WebSocket API] -> [Lambda Handler] -> [Bedrock AI Agents]
+                                                   -> [Knowledge Base]
+     [UI] <- [WebSocket Response] <- [Processed Results]
+```
 
 1. **User** opens the web app in their browser.  
-2. **Client** establishes a WebSocket connection to API Gateway.  
-3. **Browser** sends a query (e.g., “What’s the average inmate count?”).  
+2. **Browser** sends a query (e.g., “What’s the average inmate count?”). 
+3. **Client** establishes a WebSocket connection to API Gateway.
 4. **WebSocket Handler** Lambda receives the message and triggers BedrockAIAgent.  
 5. **Supervisor Agent**  
-   - If quantitative → runs Python on CSVs stored in S3.  
+   - If quantitative → runs Python code on CSVs stored in S3.  
    - If text-only → delegates to PDF Agent.  
 6. **PDF Agent**  
    - Retrieves relevant graph embeddings.  
