@@ -4,7 +4,7 @@ phases:
   install:
     runtime-versions:  
       nodejs: 16
-      
+
     commands:
       - echo "Installing AWS CDK CLI..."
       - npm install -g aws-cdk
@@ -22,7 +22,10 @@ phases:
   build:
     commands:
       - echo "Deploying CDK stacks... now its the waiting time..."
-      - cdk deploy --all --require-approval never
+      - cdk deploy --all --require-approval never \
+          -c githubToken=$GITHUB_TOKEN \
+          -c githubOwner=$GITHUB_OWNER \
+          -c githubRepo=$GITHUB_REPO 
 
   post_build:
     commands:
