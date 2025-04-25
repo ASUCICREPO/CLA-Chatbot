@@ -177,7 +177,7 @@ export class CdkBackendStack1 extends cdk.Stack {
     
     const PDF_agent_Alias = new bedrock.AgentAlias(this, 'PDFAgentAlias', {
       agent: PDF_agent,
-      aliasName: "ProductionPDFAgentv1",
+      // aliasName: "ProductionPDFAgentv1",
       description: 'Production alias for the PDF agent',
     })
 
@@ -242,7 +242,7 @@ export class CdkBackendStack1 extends cdk.Stack {
 
     const Supervisor_Agent_Alias = new bedrock.AgentAlias(this, 'SupervisorAgentAlias', {
       agent: SupervisorAgentWithCodeInterpreter,
-      aliasName: "ProductionSupervisorAgentv1",
+      // aliasName: "ProductionSupervisorAgentv1",
       description: 'Production alias for the Supervisor agent',
     }); 
 
@@ -344,7 +344,6 @@ export class CdkBackendStack1 extends cdk.Stack {
         returnResponse: true
       }
     );
-
 
     const amplifyApp = new amplify.App(this, 'ChatbotUI', {
       sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
