@@ -177,9 +177,9 @@ export class CdkBackendStack1 extends cdk.Stack {
     
     const PDF_agent_Alias = new bedrock.AgentAlias(this, 'PDFAgentAlias', {
       agent: PDF_agent,
-      // aliasName: "ProductionPDFAgentv1",
       description: 'Production alias for the PDF agent',
     })
+
 
     const prompt_for_supervisor = 
     `You are the Supervisor Agent, acting as the primary CSV processing agent. Your role is to process quantitative, data-driven queries using attached CSV files via the Code Interpreter. If the CSV-based approach fails (e.g., due to missing data, insufficient columns, or inability to compute the required result), then delegate the query to the agent PDF-Agent-With-KB for a text-based response and then give the final answer.
@@ -242,7 +242,6 @@ export class CdkBackendStack1 extends cdk.Stack {
 
     const Supervisor_Agent_Alias = new bedrock.AgentAlias(this, 'SupervisorAgentAlias', {
       agent: SupervisorAgentWithCodeInterpreter,
-      // aliasName: "ProductionSupervisorAgentv1",
       description: 'Production alias for the Supervisor agent',
     }); 
 
