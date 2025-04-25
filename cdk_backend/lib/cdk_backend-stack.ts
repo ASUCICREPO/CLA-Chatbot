@@ -62,8 +62,6 @@ export class CdkBackendStack1 extends cdk.Stack {
         resources: ['*'],
       }));
 
-
-
       const bedrockRoleAgentPDF = new iam.Role(this, 'BedrockRole3', {
       assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
       managedPolicies: [
@@ -90,27 +88,10 @@ export class CdkBackendStack1 extends cdk.Stack {
       existingRole: bedrockRole,
   });
 
-    
-    // const DataSource = new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
-    //   name: 'InmateDataKnowledgeBase12',  
-    //   knowledgeBaseId: graphKb.knowledgeBaseId,
-
-    //   dataSourceConfiguration: {
-    //     type: 'S3',
-    //     s3Configuration: {
-    //       bucketArn: WebsiteData.bucketArn,
-    //     },
-    //   },
-    //   vectorIngestionConfiguration: {
-    //     parsingConfiguration: {
-    //       parsingStrategy: "BEDROCK_DATA_AUTOMATION",
-    //     },
-    //   },
-    // });
-
     new bedrock2.CfnDataSource(this, 'KnowledgeBaseDataSource', {
       name: 'InmateDataKnowledgeBase12',
       knowledgeBaseId: graphKb.knowledgeBaseId,
+      
       
       dataSourceConfiguration: {
         type: 'S3',
@@ -127,16 +108,15 @@ export class CdkBackendStack1 extends cdk.Stack {
         contextEnrichmentConfiguration: {
           type: 'BEDROCK_FOUNDATION_MODEL',
           bedrockFoundationModelConfiguration: {
-            // use the Claude 3 Haiku model for chunk/entity extraction with aws region
             modelArn: bedrock.BedrockFoundationModel.ANTHROPIC_CLAUDE_HAIKU_V1_0.modelArn,
             enrichmentStrategyConfiguration: {
-
               method: 'CHUNK_ENTITY_EXTRACTION',
             },
           },
         },
       },
     });
+
 
     const guardrail = new bedrock.Guardrail(this, 'bedrockGuardrails', {
       name: 'ChatbotGuardrails',
@@ -154,7 +134,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       .filter((f): f is bedrock.ContentFilterType => typeof f === 'string');
 
     for (const type of allFilters) {
-      // enforce AWS rule: PROMPT_ATTACK => responseStrength NONE
       const responseStrength =
         type === bedrock.ContentFilterType.PROMPT_ATTACK
           ? bedrock.ContentFilterStrength.NONE
@@ -192,8 +171,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       For example:
         - “I found data for years: 2018, 2019, 2020. Which year are you interested in?”
         - “I found data for groups: male, female, combined. Which group should I use?”</IMPORTANT>`
-
-
 
     const PDF_agent = new bedrock.Agent(this, 'Agent-PDF', {
       name: 'PDFAgent-with-knowledge-base-v1',
@@ -286,8 +263,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       stageName: 'production',
       autoDeploy: true,
     });
-
-    const webSocketApiArn = `arn:aws:execute-api:${this.region}:${this.account}:${webSocketApi.apiId}/${webSocketStage.stageName}/POST/@connections/*`;
 
     const InmateSummaryScrapper = new lambda.Function(this, 'InmateSummaryScrapper', {
       runtime: lambda.Runtime.PYTHON_3_12,
@@ -411,7 +386,6 @@ export class CdkBackendStack1 extends cdk.Stack {
       stage: 'PRODUCTION'
     });
 
-
     amplifyApp.addEnvironment('REACT_APP_WEBSOCKET_API', webSocketStage.url);
 
     amplifyApp.addEnvironment('REACT_APP_BUCKET_NAME', WebsiteData.bucketName);
@@ -420,7 +394,6 @@ export class CdkBackendStack1 extends cdk.Stack {
     
     githubToken_secret_manager.grantRead(amplifyApp);
 
-  
     // Output the bucket name
     new cdk.CfnOutput(this, 'WebsiteDataBucketName', {
       value: WebsiteData.bucketName,

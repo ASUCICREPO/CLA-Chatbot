@@ -1,0 +1,29 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:  
+      nodejs: 16
+      
+    commands:
+      - echo "Installing AWS CDK CLI..."
+      - npm install -g aws-cdk
+      - echo "Changing into cdk_backend directory"
+      - cd cdk_backend
+      - echo "Installing npm dependencies"
+      - npm ci
+
+  pre_build:
+    commands:
+      - echo "Building TypeScript sources"
+      - npm run build
+      - echo "Bootstrapping CDK (no approval)..."
+      - cdk bootstrap --require-approval never || true
+  build:
+    commands:
+      - echo "Deploying CDK stacks... now its the waiting time..."
+      - cdk deploy --all --require-approval never
+
+  post_build:
+    commands:
+      - echo "CDK deployment complete."
