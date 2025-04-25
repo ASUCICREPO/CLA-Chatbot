@@ -16,7 +16,7 @@ phases:
   pre_build:
     commands:
       - echo "Building TypeScript sources"
-      - echo "GitHub Owner is: $GITHUB_OWNER"
+      - 'echo "GitHub Owner is: $GITHUB_OWNER"'
       - npm run build
       - echo "Bootstrapping CDK (no approval)..."
       - cdk bootstrap --require-approval never \
