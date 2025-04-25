@@ -35,4 +35,4 @@ phases:
 
   post_build:
     commands:
-      - 'echo "CDK $ACTION complete."''
+      - 'echo "CDK $ACTION complete."'
