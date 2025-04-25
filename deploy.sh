@@ -109,9 +109,9 @@ else
     --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 
   # Wait for propagation
-  echo "Waiting for IAM role to propagate..."
-  sleep 5
   echo "✓ IAM role created"
+  echo "Waiting for IAM role to propagate for 10 seconds..."
+  sleep 10
 fi
 
 # --------------------------------------------------
