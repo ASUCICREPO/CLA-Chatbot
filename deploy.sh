@@ -28,6 +28,16 @@ if [ -z "${GITHUB_REPO:-}" ]; then
   read -rp "Enter CDK context githubRepo: (https://github.com/GITHUB_OWNER/GITHUB_REPO) :  " GITHUB_REPO
 fi
 
+if [ -z "${ACTION:-}" ]; then
+  read -rp "Would you like to [deploy] or [destroy] the stacks? Type deploy or destroy " ACTION
+  ACTION=$(printf '%s' "$ACTION" | tr '[:upper:]' '[:lower:]')
+fi
+
+if [[ "$ACTION" != "deploy" && "$ACTION" != "destroy" ]]; then
+  echo "Invalid choice: '$ACTION'. Please run again and choose deploy or destroy."
+  exit 1
+fi
+
 # --------------------------------------------------
 # 2. Ensure IAM service role exists
 # --------------------------------------------------
@@ -92,6 +102,11 @@ ENVIRONMENT='{
     {
       "name":  "GITHUB_REPO",
       "value": "'"$GITHUB_REPO"'",
+      "type":  "PLAINTEXT"
+    },
+    {
+      "name":  "ACTION",
+      "value": "'"$ACTION"'",
       "type":  "PLAINTEXT"
     }
   ]

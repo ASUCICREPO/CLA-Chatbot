@@ -26,13 +26,13 @@ phases:
         -c githubRepo=$GITHUB_REPO || true
   build:
     commands:
-      - echo "Deploying CDK stacks... now its the waiting time..."
+      - 'echo "$ACTION CDK stacks... now its the waiting time..."'
       - >-
-        cdk deploy --all --require-approval never
+        cdk $ACTION --all --require-approval never
         -c githubToken=$GITHUB_TOKEN
         -c githubOwner=$GITHUB_OWNER
         -c githubRepo=$GITHUB_REPO
 
   post_build:
     commands:
-      - echo "CDK deployment complete."
+      - 'echo "CDK $ACTION complete."''
