@@ -3,7 +3,7 @@ version: 0.2
 phases:
   install:
     runtime-versions:  
-      nodejs: 16
+      nodejs: 20
 
     commands:
       - echo "Installing AWS CDK CLI..."
@@ -16,9 +16,13 @@ phases:
   pre_build:
     commands:
       - echo "Building TypeScript sources"
+      - echo "GitHub Owner is: $GITHUB_OWNER"
       - npm run build
       - echo "Bootstrapping CDK (no approval)..."
-      - cdk bootstrap --require-approval never || true
+      - cdk bootstrap --require-approval never \
+          -c githubToken=$GITHUB_TOKEN \
+          -c githubOwner=$GITHUB_OWNER \
+          -c githubRepo=$GITHUB_REPO || true
   build:
     commands:
       - echo "Deploying CDK stacks... now its the waiting time..."
