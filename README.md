@@ -65,7 +65,7 @@ The system consists of a React-based frontend that provides an intuitive chat in
   To request access to these models:
   1. Navigate to the AWS Bedrock console
   2. Click "Model access" in the left navigation pane
-  3. Click "Manage model access"
+  3. Click "Manage model access."
   4. Find each model in the list and select the checkbox next to it
   5. Click "Save changes" at the bottom of the page
   6. Wait for model access to be granted (usually within minutes)
@@ -74,11 +74,11 @@ The system consists of a React-based frontend that provides an intuitive chat in
   Note: If you don't see the option to enable a model, ensure your AWS account 
   and region support Bedrock model access. Contact AWS Support if needed.
 - AWS Account Permissions 
-   - Ensure permissions to create and manage AWS resources like S3, Lambda, Knowledge Bases, AI Agents, Neptune, and Amplify, Websocket , and etc.  
+   - Ensure permissions to create and manage AWS resources like S3, Lambda, Knowledge Bases, AI Agents, Neptune, Amplify, Websocket, etc.  
    - [AWS IAM Policies and Permissions](https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies.html)
 
 
-## Deployment Using AWS CodeBuild and AWS CLI
+## Deployment Using AWS CodeBuild and AWS Cloudshell
 ### Prerequisites
 
 - Have access to CodeBuild and AWS Cloudshell
@@ -167,14 +167,14 @@ Once the infrastructure is deployed using either of the two approaches:
 2. Sync the Knowledge Base:
    - Go to AWS Console > Bedrock > Knowledge bases
    - Select the knowledge base created by the stack
-   - Click "Sync data sources" button
+   - Click the "Sync data sources" button
    - Wait for sync to complete (status will show "Available")
 
 3. Deploy the Frontend:
    - Go to AWS Console > AWS Amplify
    - Select the app created by the stack
    - Click "Run build" under the main branch
-   - Wait for build and deployment to complete
+   - Wait for the build and deployment to complete
    - Access the application URL provided by Amplify 
 
 4. Using the Application:
@@ -196,7 +196,7 @@ Once the infrastructure is deployed using either of the two approaches:
 2. Lambda Function Errors
 - Error: "Lambda function timed out"
   - Check CloudWatch logs for detailed error messages
-  - Increase the Lambda function timeout in CDK stack
+  - Increase the Lambda function timeout in the CDK stack
   - Verify memory allocation is sufficient
 
 3. AI Response Issues
@@ -237,7 +237,7 @@ Once the infrastructure is deployed using either of the two approaches:
 
 1. **User** opens the web app in their browser.  
 2. **Browser** sends a query (e.g., “What’s the average inmate count?”). 
-3. **Client** establishes a WebSocket connection to API Gateway.
+3. **Client** establishes a WebSocket connection to the API Gateway.
 4. **WebSocket Handler** Lambda receives the message and triggers BedrockAIAgent.  
 5. **Supervisor Agent**  
    - If quantitative → runs Python code on CSVs stored in S3.  
@@ -265,12 +265,12 @@ This modular, serverless design ensures **scalability**, **security**, and **ext
 ### Bedrock Components:
 - Graph Knowledge Base: Stores and processes inmate data
 - PDF Agent: Handles non-quantitative queries using PDF files
-- Supervisor Agent: Processes quantitative queries with code interpreter
+- Supervisor Agent: Processes quantitative queries with a code interpreter
 - Content Filtering: Implements guardrails and content moderation
 
 ### Other AWS Services:
 - S3 Bucket: Stores website data and scraped information
-- OpenSearch Serverless: Vector database for knowledge base
+- OpenSearch Serverless: Vector database for a knowledge base
 - Bedrock: AI model inference and knowledge base
 - API Gateway: WebSocket API endpoint
 - IAM: Roles and permissions for service interactions
